@@ -113,6 +113,7 @@ summary .btn{padding:5px 9px;font-size:12px}
   <button class="chip" data-filter="behind">Behind</button>
   <button class="chip" data-filter="caught">Caught up</button>
   <label class="opt"><input type="checkbox" id="occ"> Include Occasional</label>
+  <label class="opt"><input type="checkbox" id="btw"> Include between seasons</label>
   <select id="sort" aria-label="Sort">
     <option value="title">Title</option>
     <option value="behind">Most behind</option>
@@ -144,6 +145,7 @@ state.ui ||= { tab: 'watching', filter: 'all', sort: 'title' };
 function normUI() {
   const u = state.ui;
   u.occ ??= false;
+  u.btw ??= false;
   if (u.showT === undefined || u.showM === undefined) { u.showT = u.who !== 'me'; u.showM = u.who !== 'together'; }
   delete u.who;
 }
@@ -223,6 +225,17 @@ function stats(sh, now = Date.now()) {
   const upcoming = sh.eps.filter(e => e.t != null && e.t > now).sort((a, b) => a.t - b.t);
   return { aired: aired.length, behind: unwatched.length, nextUnwatched: unwatched[0], next: upcoming[0] };
 }
+const RETURN_WINDOW = 30 * 864e5; // a show reappears this long before its next episode airs
+// TVmaze's "To Be Determined" is treated as "Running".
+const statusLabel = s => (s === 'To Be Determined' ? 'Running' : (s || ''));
+// Between seasons = caught up on everything aired, and the next episode is more than
+// a month away or has no date yet.
+function isBetween(sh, now = Date.now()) {
+  if (!sh.eps || !sh.eps.length) return false; // episodes never loaded: don't hide
+  const st = stats(sh, now);
+  if (st.behind > 0) return false;
+  return !st.next || st.next.t - now > RETURN_WINDOW;
+}
 function updateFresh(sh) {
   const now = Date.now();
   const ids = sh.eps.filter(e => e.t != null && e.t <= now).map(e => e.id);
@@ -279,15 +292,17 @@ function card({ s, st }) {
     else if (st.aired > 0) line = `<span class="good">Caught up</span>`;
     else line = 'Nothing aired yet';
   } else {
-    line = esc(s.status || '') + (s.premiered ? ` · ${s.premiered.slice(0, 4)}` : '');
+    line = esc(statusLabel(s.status)) + (s.premiered ? ` · ${s.premiered.slice(0, 4)}` : '');
   }
   if (st.next) line += ` · ${lab(st.next)} airs ${fmtDate(st.next.t)}`;
+  const between = s.list === 'watching' && isBetween(s);
+  if (between && !st.next) line += s.status === 'Ended' ? ' · Ended' : ' · no return date yet';
   const names = s.stream?.names?.length ? s.stream.names.join(', ') : 'Streaming info unavailable';
   const isNew = s.list === 'watching' && s.fresh && s.fresh.length;
   return `<button class="card" data-open="${s.id}">
     ${s.image ? `<img class="poster" loading="lazy" src="${esc(s.image)}" alt="">` : `<div class="poster"></div>`}
     <div class="cbody">
-      <div class="title">${s.fav ? '<span class="star" aria-label="Favorite">&#9733;</span>' : ''}<span class="t">${esc(s.name)}</span>${isNew ? `<span class="pill">NEW ${s.fresh.length}</span>` : ''}${isTogether(s) ? `<span class="tag">Together</span>` : ''}${s.list === 'watching' && s.occasional ? `<span class="tag">Occasional</span>` : ''}</div>
+      <div class="title">${s.fav ? '<span class="star" aria-label="Favorite">&#9733;</span>' : ''}<span class="t">${esc(s.name)}</span>${isNew ? `<span class="pill">NEW ${s.fresh.length}</span>` : ''}${isTogether(s) ? `<span class="tag">Together</span>` : ''}${s.list === 'watching' && s.occasional ? `<span class="tag">Occasional</span>` : ''}${between ? `<span class="tag">${s.status === 'Ended' ? 'Ended' : 'Between seasons'}</span>` : ''}</div>
       <div class="sub">${line}</div>
       <div class="stream">${esc(names)}</div>
     </div></button>`;
@@ -295,9 +310,9 @@ function card({ s, st }) {
 function render() {
   const all = Object.values(state.shows);
   const W = all.filter(s => s.list === 'watching'), L = all.filter(s => s.list === 'watchlist');
-  const WV = W.filter(s => !s.occasional || state.ui.occ);
+  const WV = W.filter(s => (!s.occasional || state.ui.occ) && (state.ui.btw || !isBetween(s)));
   $('cW').textContent = WV.length || ''; $('cL').textContent = L.length || '';
-  $('occ').checked = !!state.ui.occ;
+  $('occ').checked = !!state.ui.occ; $('btw').checked = !!state.ui.btw;
   document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === state.ui.tab));
   const watching = state.ui.tab === 'watching';
   $('controls').hidden = !watching || !W.length;
@@ -319,7 +334,7 @@ function render() {
   });
   $('list').innerHTML = rows.length ? rows.map(card).join('') :
     `<div class="empty">${!all.length ? 'No shows yet.<br>Tap + to add one.'
-      : watching && W.length && !WV.length ? 'Only occasional shows here.<br>Check "Include Occasional" to see them.' : 'Nothing here.'}</div>`;
+      : watching && W.length && !WV.length ? 'Everything here is hidden (occasional or between seasons).<br>Use the "Include" boxes to see them.' : 'Nothing here.'}</div>`;
   const nw = WV.filter(s => s.fresh && s.fresh.length);
   $('banner').innerHTML = nw.length ? `<div class="banner"><b>New episodes:</b> ` +
     nw.map(s => `<button data-open="${s.id}">${esc(s.name)} (${s.fresh.length})</button>`).join('') + `</div>` : '';
@@ -363,7 +378,7 @@ function renderDetail(initial) {
   }).join('');
   showSheet(`<div class="shead"><h2>${esc(sh.name)}</h2><button class="btn" data-act="close">Done</button></div>
   <div class="sbody">
-    <div class="small">${esc(sh.status || '')}${sh.premiered ? ' · ' + sh.premiered.slice(0, 4) : ''}${sh.url ? ` · <a href="${esc(sh.url)}" target="_blank" rel="noopener">TVmaze</a>` : ''}</div>
+    <div class="small">${esc(statusLabel(sh.status))}${sh.premiered ? ' · ' + sh.premiered.slice(0, 4) : ''}${sh.url ? ` · <a href="${esc(sh.url)}" target="_blank" rel="noopener">TVmaze</a>` : ''}</div>
     <div style="margin-top:6px"><b>Streaming:</b> ${streamTxt}</div>
     <div class="small">Source: ${streamSrc}</div>
     <div class="seg" role="group" aria-label="Who watches">
@@ -411,7 +426,7 @@ function resultRow(m, id) {
   return `<div class="row">
     ${m.image ? `<img class="poster" style="width:44px;height:62px" src="${esc(m.image)}" alt="">` : `<div class="poster" style="width:44px;height:62px"></div>`}
     <div style="flex:1;min-width:0"><div style="font-weight:650;color:var(--ink)">${esc(m.name)}</div>
-    <div class="small">${m.premiered ? m.premiered.slice(0, 4) : '—'} · ${esc(m.status || '')}${m.net ? ' · ' + esc(m.net) : ''}</div></div>
+    <div class="small">${m.premiered ? m.premiered.slice(0, 4) : '—'} · ${esc(statusLabel(m.status))}${m.net ? ' · ' + esc(m.net) : ''}</div></div>
     ${have ? `<span class="small">Added</span>` : `<div style="display:flex;flex-direction:column;gap:6px">
       <button class="btn pri" data-act="add" data-id="${id}" data-list="watching">Watching</button>
       <button class="btn" data-act="add" data-id="${id}" data-list="watching" data-occ="1">Occasional</button>
@@ -426,6 +441,7 @@ async function addShow(id, list, occ) {
   state.shows[id] = sh; save(); render();
   if (list === 'watching' && !occ) openDetail(id);
   else { closeSheet(); toast(occ ? 'Added as Occasional (hidden unless "Include Occasional" is checked)' : 'Added to To-watch'); }
+  if (list === 'watching' && isBetween(sh)) setTimeout(() => toast('Added. It\'s between seasons, so it\'s hidden unless "Include between seasons" is checked'), occ ? 2800 : 0);
 }
 
 function openSettings() {
@@ -512,6 +528,7 @@ $('sheet').addEventListener('toggle', e => {
   const s = Number(d.dataset.season); if (d.open) openSeasons.add(s); else openSeasons.delete(s);
 }, true);
 $('occ').addEventListener('change', e => { state.ui.occ = e.target.checked; save(); render(); });
+$('btw').addEventListener('change', e => { state.ui.btw = e.target.checked; save(); render(); });
 $('sort').addEventListener('change', e => { state.ui.sort = e.target.value; save(); render(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkAired(); render(); syncAll(false); } });
 
