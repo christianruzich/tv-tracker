@@ -40,6 +40,7 @@ h1{font-size:22px;margin:0;letter-spacing:-.01em}
 .chip.on{border-color:var(--accent);color:var(--accent);font-weight:600}
 .opt{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--mute);padding:6px 4px}
 .opt input{width:18px;height:18px;accent-color:var(--accent)}
+.star{color:#e0a100;flex:none;margin-right:-2px}
 .tag{font-size:11px;font-weight:700;color:var(--mute);border:1px solid var(--line);border-radius:999px;padding:1px 7px;flex:none}
 select{margin-left:auto;font:inherit;font-size:14px;padding:6px 8px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
 #banner{margin:4px 16px 0}
@@ -270,7 +271,7 @@ function card({ s, st }) {
   return `<button class="card" data-open="${s.id}">
     ${s.image ? `<img class="poster" loading="lazy" src="${esc(s.image)}" alt="">` : `<div class="poster"></div>`}
     <div class="cbody">
-      <div class="title"><span class="t">${esc(s.name)}</span>${isNew ? `<span class="pill">NEW ${s.fresh.length}</span>` : ''}${s.list === 'watching' && s.occasional ? `<span class="tag">Occasional</span>` : ''}</div>
+      <div class="title">${s.fav ? '<span class="star" aria-label="Favorite">&#9733;</span>' : ''}<span class="t">${esc(s.name)}</span>${isNew ? `<span class="pill">NEW ${s.fresh.length}</span>` : ''}${s.list === 'watching' && s.occasional ? `<span class="tag">Occasional</span>` : ''}</div>
       <div class="sub">${line}</div>
       <div class="stream">${esc(names)}</div>
     </div></button>`;
@@ -291,6 +292,8 @@ function render() {
   if (watching && state.ui.filter === 'caught') rows = rows.filter(r => r.st.behind === 0);
   const by = state.ui.sort;
   rows.sort((a, b) => {
+    const f = (b.s.fav ? 1 : 0) - (a.s.fav ? 1 : 0);
+    if (f) return f;
     if (watching && by === 'behind') return b.st.behind - a.st.behind || sortKey(a.s.name).localeCompare(sortKey(b.s.name));
     if (watching && by === 'next') return (a.st.next?.t ?? 9e15) - (b.st.next?.t ?? 9e15);
     return sortKey(a.s.name).localeCompare(sortKey(b.s.name));
@@ -348,6 +351,7 @@ function renderDetail(initial) {
       ${sh.list === 'watching'
         ? `<button class="btn" data-act="mark-all">Mark all aired watched</button><button class="btn" data-act="occ">${sh.occasional ? 'Make regular' : 'Mark occasional'}</button><button class="btn" data-act="to-list">Move to To-watch</button>`
         : `<button class="btn pri" data-act="to-watching">Start watching</button>`}
+      <button class="btn" data-act="fav">${sh.fav ? '&#9733; Unfavorite' : '&#9734; Favorite'}</button>
       <button class="btn" data-act="restream">Refresh streaming</button>
       <button class="btn danger" data-act="remove">Remove</button>
     </div>
@@ -462,6 +466,7 @@ document.addEventListener('click', async e => {
   }
   else if (act === 'mark-all') { const now = Date.now(); sh.eps.filter(x => x.t != null && x.t <= now).forEach(x => w[x.id] = 1); }
   else if (act === 'occ') sh.occasional = !sh.occasional;
+  else if (act === 'fav') sh.fav = !sh.fav;
   else if (act === 'to-list') { sh.list = 'watchlist'; sh.occasional = false; }
   else if (act === 'to-watching') { sh.list = 'watching'; sh.fresh = []; }
   else if (act === 'restream') {
