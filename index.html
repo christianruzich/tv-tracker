@@ -539,12 +539,13 @@ function renderServices() {
   const mine = new Set(state.settings.myServices || []);
   const q = ($('svcq').value || '').trim().toLowerCase();
   const match = p => !q || p.name.toLowerCase().includes(q);
-  const picked = P.list.filter(p => mine.has(p.id) && match(p));
-  const others = P.list.filter(p => !mine.has(p.id) && match(p));
-  const shown = [...picked, ...(q ? others : others.slice(0, 40))];
+  // Ticked services pinned to the top, then everything else; each group A-Z.
+  const az = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  const picked = P.list.filter(p => mine.has(p.id) && match(p)).sort(az);
+  const others = P.list.filter(p => !mine.has(p.id) && match(p)).sort(az);
+  const shown = [...picked, ...others];
   const row = p => `<label class="svc"><input type="checkbox" data-svc="${p.id}" ${mine.has(p.id) ? 'checked' : ''}> ${esc(p.name)}</label>`;
-  box.innerHTML = (shown.map(row).join('') || '<div class="small" style="margin:8px 0">No matches.</div>') +
-    (!q && others.length > 40 ? '<div class="small" style="margin:8px 0">Search to find more services.</div>' : '');
+  box.innerHTML = shown.map(row).join('') || '<div class="small" style="margin:8px 0">No matches.</div>';
 }
 function openSettings() {
   openId = null;
