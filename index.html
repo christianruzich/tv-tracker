@@ -226,8 +226,8 @@ function stats(sh, now = Date.now()) {
   return { aired: aired.length, behind: unwatched.length, nextUnwatched: unwatched[0], next: upcoming[0] };
 }
 const RETURN_WINDOW = 30 * 864e5; // a show reappears this long before its next episode airs
-// TVmaze's "To Be Determined" is treated as "Running".
-const statusLabel = s => (s === 'To Be Determined' ? 'Running' : (s || ''));
+// "To Be Determined" is displayed as "TBD". Everywhere the app makes decisions it behaves like "Running".
+const statusLabel = s => (s === 'To Be Determined' ? 'TBD' : (s || ''));
 // Between seasons = caught up on everything aired, and the next episode is more than
 // a month away or has no date yet.
 function isBetween(sh, now = Date.now()) {
@@ -378,7 +378,7 @@ function renderDetail(initial) {
   }).join('');
   showSheet(`<div class="shead"><h2>${esc(sh.name)}</h2><button class="btn" data-act="close">Done</button></div>
   <div class="sbody">
-    <div class="small">${esc(statusLabel(sh.status))}${sh.premiered ? ' · ' + sh.premiered.slice(0, 4) : ''}${sh.url ? ` · <a href="${esc(sh.url)}" target="_blank" rel="noopener">TVmaze</a>` : ''}</div>
+    <div class="small">${esc(statusLabel(sh.status))}${sh.premiered ? ' · ' + sh.premiered.slice(0, 4) : ''}${sh.list === 'watching' && sh.status !== 'Ended' && isBetween(sh, now) ? ' · Returns ' + (st.next ? fmtDate(st.next.t) : 'TBA') : ''}${sh.url ? ` · <a href="${esc(sh.url)}" target="_blank" rel="noopener">TVmaze</a>` : ''}</div>
     <div style="margin-top:6px"><b>Streaming:</b> ${streamTxt}</div>
     <div class="small">Source: ${streamSrc}</div>
     <div class="seg" role="group" aria-label="Who watches">
