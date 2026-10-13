@@ -43,6 +43,8 @@ h1{font-size:22px;margin:0;letter-spacing:-.01em}
 .seg{display:flex;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:10px 0;background:var(--card)}
 .seg button{flex:1;padding:10px;font-weight:600;color:var(--mute)}
 .seg button.on{background:var(--accent);color:var(--accent-ink)}
+.svc{display:flex;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid var(--line);font-size:16px;color:var(--ink)}
+.svc input{width:20px;height:20px;accent-color:var(--accent);flex:none}
 .star{color:#e0a100;flex:none;margin-right:-2px}
 .tag{font-size:11px;font-weight:700;color:var(--mute);border:1px solid var(--line);border-radius:999px;padding:1px 7px;flex:none}
 select{margin-left:auto;font:inherit;font-size:14px;padding:6px 8px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
@@ -151,6 +153,7 @@ function normUI() {
   u.btw ??= false;
   u.pau ??= false;
   state.alerts ||= []; // pending show-update pop-ups
+  state.settings.myServices ||= []; // TMDB provider IDs the user subscribes to
   if (u.showT === undefined || u.showM === undefined) { u.showT = u.who !== 'me'; u.showM = u.who !== 'together'; }
   delete u.who;
 }
@@ -192,7 +195,31 @@ async function tmdbProviders(sh) {
   const w = await tmdb('/tv/' + id + '/watch/providers');
   const us = w?.results?.US;
   if (!us) return [];
-  return [...new Set([...(us.flatrate || []), ...(us.ads || []), ...(us.free || [])].map(p => p.provider_name))];
+  const seen = new Map();
+  [...(us.flatrate || []), ...(us.ads || []), ...(us.free || [])].forEach(p => seen.set(p.provider_id, p.provider_name));
+  return [...seen].map(([id, name]) => ({ id, name }));
+}
+// Master list of US streaming providers (for the "My streaming services" checkboxes).
+async function loadProviders(force) {
+  const P = state.settings.providers;
+  if (!force && P && Date.now() - P.t < 30 * 864e5) return P;
+  const r = await tmdb('/watch/providers/tv', { watch_region: 'US' });
+  if (!r || !Array.isArray(r.results)) throw new Error('No provider list');
+  const list = r.results.map(x => ({ id: x.provider_id, name: x.provider_name, p: x.display_priorities?.US ?? x.display_priority ?? 999 }))
+    .sort((a, b) => a.p - b.p || a.name.localeCompare(b.name));
+  state.settings.providers = { list, t: Date.now() };
+  save();
+  return state.settings.providers;
+}
+// What to show for a show's streaming line, given the services the user ticked.
+//  plain = no filtering possible (no TMDB data, or no services chosen yet)
+//  mine  = show only the user's services it is on
+//  none  = it is on none of the user's services; names = everywhere it is available
+function streamInfo(sh) {
+  const st = sh.stream, mine = state.settings.myServices || [];
+  if (!st || st.src !== 'justwatch' || !Array.isArray(st.providers) || !mine.length) return { mode: 'plain', names: (st && st.names) || [] };
+  const hit = st.providers.filter(p => mine.includes(p.id));
+  return hit.length ? { mode: 'mine', names: hit.map(p => p.name) } : { mode: 'none', names: st.providers.map(p => p.name) };
 }
 function normEps(list) {
   return (list || []).map(e => ({
@@ -210,11 +237,11 @@ function metaFrom(s) {
 async function refreshStream(sh, force) {
   const now = Date.now();
   const hasKey = !!(state.settings.tmdbKey || '').trim();
-  const fresh = sh.stream && sh.stream.src === 'justwatch' && now - sh.stream.t < 14 * 864e5;
+  const fresh = sh.stream && sh.stream.src === 'justwatch' && Array.isArray(sh.stream.providers) && now - sh.stream.t < 14 * 864e5;
   if (hasKey && (force || !fresh)) {
     try {
-      const names = await tmdbProviders(sh);
-      if (names) { sh.stream = { names, src: 'justwatch', t: now }; return; }
+      const providers = await tmdbProviders(sh);
+      if (providers) { sh.stream = { providers, names: providers.map(p => p.name), src: 'justwatch', t: now }; return; }
     } catch (e) { /* fall through to TVmaze network */ }
   }
   if (!hasKey || !sh.stream || sh.stream.src !== 'justwatch') {
@@ -338,7 +365,8 @@ function card({ s, st }) {
   if (st.next) line += ` · ${lab(st.next)} airs ${fmtDate(st.next.t)}`;
   const between = s.list === 'watching' && isBetween(s);
   if (between && !st.next) line += s.status === 'Ended' ? ' · Ended' : ' · no return date yet';
-  const names = s.stream?.names?.length ? s.stream.names.join(', ') : 'Streaming info unavailable';
+  const si = streamInfo(s);
+  const names = si.mode === 'none' ? 'Not on your streaming services' : si.names.length ? si.names.join(', ') : 'Streaming info unavailable';
   const isNew = s.list === 'watching' && s.fresh && s.fresh.length;
   return `<button class="card" data-open="${s.id}">
     ${s.image ? `<img class="poster" loading="lazy" src="${esc(s.image)}" alt="">` : `<div class="poster"></div>`}
@@ -403,8 +431,11 @@ function renderDetail(initial) {
   const now = Date.now(), w = sh.watched || {}, st = stats(sh, now);
   const seasons = {}; sh.eps.forEach(e => (seasons[e.s] ??= []).push(e));
   const snums = Object.keys(seasons).map(Number).sort((a, b) => b - a);
-  const streamTxt = sh.stream?.names?.length ? esc(sh.stream.names.join(', ')) : 'Not found';
-  const streamSrc = sh.stream?.src === 'justwatch' ? 'JustWatch via TMDB (US)'
+  const si = streamInfo(sh);
+  const streamTxt = si.mode === 'none'
+    ? 'Not on your streaming services' + (si.names.length ? `<div class="small" style="margin-top:2px">Available on: ${esc(si.names.join(', '))}</div>` : ' <span class="small">(no streaming availability found)</span>')
+    : si.names.length ? esc(si.names.join(', ')) : 'Not found';
+  const streamSrc = sh.stream?.src === 'justwatch' ? 'JustWatch via TMDB (US)' + (si.mode === 'mine' ? ' · your services only' : '')
     : 'network listed on TVmaze; add a TMDB key in settings for streaming services';
   const body = snums.map(sn => {
     const eps = seasons[sn], aired = eps.filter(e => e.t != null && e.t <= now);
@@ -488,6 +519,33 @@ async function addShow(id, list, occ) {
   if (list === 'watching' && isBetween(sh)) setTimeout(() => toast('Added. It\'s between seasons, so it\'s hidden unless the "Between" box is checked'), occ ? 2800 : 0);
 }
 
+const hasTmdbKey = () => !!(state.settings.tmdbKey || '').trim();
+let providerErr = false; // not saved
+async function ensureProviders(force) {
+  providerErr = false;
+  try { await loadProviders(force); } catch (e) { providerErr = true; }
+  renderServices();
+}
+function renderServices() {
+  const box = $('svc'); if (!box) return;
+  if (!hasTmdbKey()) { box.innerHTML = '<div class="small" style="margin:8px 0">Save a TMDB key above to load the list of services.</div>'; return; }
+  const P = state.settings.providers;
+  if (!P) {
+    box.innerHTML = providerErr
+      ? '<div class="small" style="margin:8px 0">Couldn\'t load the list. Check the key and your connection.</div><div class="btns"><button class="btn" data-act="svcload">Try again</button></div>'
+      : '<div class="small" style="margin:8px 0">Loading…</div>';
+    return;
+  }
+  const mine = new Set(state.settings.myServices || []);
+  const q = ($('svcq').value || '').trim().toLowerCase();
+  const match = p => !q || p.name.toLowerCase().includes(q);
+  const picked = P.list.filter(p => mine.has(p.id) && match(p));
+  const others = P.list.filter(p => !mine.has(p.id) && match(p));
+  const shown = [...picked, ...(q ? others : others.slice(0, 40))];
+  const row = p => `<label class="svc"><input type="checkbox" data-svc="${p.id}" ${mine.has(p.id) ? 'checked' : ''}> ${esc(p.name)}</label>`;
+  box.innerHTML = (shown.map(row).join('') || '<div class="small" style="margin:8px 0">No matches.</div>') +
+    (!q && others.length > 40 ? '<div class="small" style="margin:8px 0">Search to find more services.</div>' : '');
+}
 function openSettings() {
   openId = null;
   const n = Object.keys(state.shows).length;
@@ -497,11 +555,18 @@ function openSettings() {
     <input type="password" id="tk" placeholder="TMDB key or token" value="${esc(state.settings.tmdbKey)}" autocomplete="off">
     <div class="btns"><button class="btn pri" data-act="savekey">Save key &amp; refresh streaming</button></div>
     <hr style="border:0;border-top:1px solid var(--line)">
+    <p><b>My streaming services</b><br><span class="small">Tick the services you have. Show tiles and pages then list only those, and say "Not on your streaming services" when a show isn't on any of them. With none ticked, everything is listed.</span></p>
+    <input type="search" id="svcq" placeholder="Search services…" autocomplete="off">
+    <div id="svc"></div>
+    <hr style="border:0;border-top:1px solid var(--line);margin-top:14px">
     <p><b>Backup</b><br><span class="small">Your data lives only in this browser (${n} show${n === 1 ? '' : 's'}). Export a copy now and then.</span></p>
     <div class="btns"><button class="btn" data-act="export">Export</button><button class="btn" data-act="import">Import</button></div>
     <input type="file" id="file" accept="application/json" hidden>
     <p class="small">Episode data: <a href="https://www.tvmaze.com" target="_blank" rel="noopener">TVmaze</a> (CC BY-SA). Streaming data: JustWatch via TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
   </div>`);
+  $('svcq').addEventListener('input', renderServices);
+  renderServices();
+  if (hasTmdbKey() && !state.settings.providers) ensureProviders();
   $('file').addEventListener('change', async e => {
     const f = e.target.files[0]; if (!f) return;
     try {
@@ -533,8 +598,10 @@ document.addEventListener('click', async e => {
   const act = t.dataset.act, sh = state.shows[openId];
   if (act === 'close') return closeSheet();
   if (act === 'add') return addShow(t.dataset.id, t.dataset.list, !!t.dataset.occ);
+  if (act === 'svcload') { renderServices(); return ensureProviders(true); }
   if (act === 'savekey') {
     state.settings.tmdbKey = $('tk').value.trim(); save(); toast('Refreshing streaming…');
+    state.settings.providers = null; renderServices(); ensureProviders(true);
     for (const s of Object.values(state.shows)) { try { await refreshStream(s, true); } catch (e) {} await sleep(250); }
     save(); render(); return toast('Streaming refreshed');
   }
@@ -573,6 +640,12 @@ $('sheet').addEventListener('toggle', e => {
   const d = e.target; if (!d.matches || !d.matches('details[data-season]')) return;
   const s = Number(d.dataset.season); if (d.open) openSeasons.add(s); else openSeasons.delete(s);
 }, true);
+document.addEventListener('change', e => {
+  const c = e.target.closest && e.target.closest('[data-svc]'); if (!c) return;
+  const id = Number(c.dataset.svc), set = new Set(state.settings.myServices || []);
+  if (c.checked) set.add(id); else set.delete(id);
+  state.settings.myServices = [...set]; save(); renderServices(); render();
+});
 $('occ').addEventListener('change', e => { state.ui.occ = e.target.checked; save(); render(); });
 $('btw').addEventListener('change', e => { state.ui.btw = e.target.checked; save(); render(); });
 $('pau').addEventListener('change', e => { state.ui.pau = e.target.checked; save(); render(); });
