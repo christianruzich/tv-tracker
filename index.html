@@ -112,8 +112,10 @@ summary .btn{padding:5px 9px;font-size:12px}
   <button class="chip" data-filter="all">All</button>
   <button class="chip" data-filter="behind">Behind</button>
   <button class="chip" data-filter="caught">Caught up</button>
-  <label class="opt"><input type="checkbox" id="occ"> Include Occasional</label>
-  <label class="opt"><input type="checkbox" id="btw"> Include between seasons</label>
+  <button class="chip" data-filter="paused">Paused</button>
+  <label class="opt"><input type="checkbox" id="occ"> Occasional</label>
+  <label class="opt"><input type="checkbox" id="btw"> Between</label>
+  <label class="opt"><input type="checkbox" id="pau"> Paused</label>
   <select id="sort" aria-label="Sort">
     <option value="title">Title</option>
     <option value="behind">Most behind</option>
@@ -124,6 +126,7 @@ summary .btn{padding:5px 9px;font-size:12px}
 <button id="fab" aria-label="Add show">+</button>
 
 <div class="overlay" id="ov" hidden><div class="sheet" id="sheet"></div></div>
+<div class="overlay" id="alertOv" hidden style="z-index:30;align-items:center;justify-content:center;padding:16px"><div class="sheet" id="alertBox" style="border-radius:20px;max-width:480px;max-height:80vh"></div></div>
 <div id="toast"></div>
 
 <script>
@@ -146,6 +149,8 @@ function normUI() {
   const u = state.ui;
   u.occ ??= false;
   u.btw ??= false;
+  u.pau ??= false;
+  state.alerts ||= []; // pending show-update pop-ups
   if (u.showT === undefined || u.showM === undefined) { u.showT = u.who !== 'me'; u.showM = u.who !== 'together'; }
   delete u.who;
 }
@@ -254,13 +259,48 @@ const isTogether = s => s.together !== false;
 const sortKey = n => n.replace(/^(the|a|an)\s+/i, '').toLowerCase();
 
 /* ---------- sync ---------- */
+// Compare a show before/after a TVmaze pull and queue pop-up alerts for:
+//  - a show moving from Running / To Be Determined to Ended
+//  - a season that now has an air date (and none had before), starting in the future
+function detectChanges(sh, prev) {
+  if (prev.first) return; // just added: nothing to compare against
+  const out = [];
+  if (['Running', 'To Be Determined'].includes(prev.status) && sh.status === 'Ended')
+    out.push({ k: `${sh.id}:ended`, id: sh.id, type: 'ended' });
+  const had = new Set(prev.eps.filter(e => e.t != null).map(e => e.s));
+  const by = {};
+  sh.eps.filter(e => e.t != null).forEach(e => (by[e.s] ??= []).push(e.t));
+  const now = Date.now();
+  for (const [s, ts] of Object.entries(by)) {
+    const t = Math.min(...ts);
+    if (!had.has(Number(s)) && t > now) out.push({ k: `${sh.id}:s${s}`, id: sh.id, type: 'season', s: Number(s), t });
+  }
+  for (const a of out) if (!state.alerts.some(x => x.k === a.k)) state.alerts.push(a);
+}
+function showAlerts() {
+  state.alerts = (state.alerts || []).filter(a => state.shows[a.id]);
+  const ov = $('alertOv');
+  if (!state.alerts.length) { ov.hidden = true; return; }
+  const row = a => {
+    const n = esc(state.shows[a.id].name);
+    return `<div class="row"><div>${a.type === 'ended'
+      ? `<b>${n}</b> is now marked <b>Ended</b>.`
+      : `<b>${n}</b>: Season ${a.s} has an air date, <b>${fmtDate(a.t)}</b>.`}</div></div>`;
+  };
+  $('alertBox').innerHTML = `<div class="shead"><h2>Show updates</h2></div>
+    <div class="sbody">${state.alerts.map(row).join('')}
+    <div class="btns"><button class="btn pri" data-adismiss="1">Dismiss</button></div></div>`;
+  ov.hidden = false;
+}
 let syncing = false;
 async function syncShow(sh) {
   const d = await api(`https://api.tvmaze.com/shows/${sh.id}?embed=episodes`);
   if (!d) return;
+  const prev = { first: !sh.synced, status: sh.status, eps: sh.eps || [] };
   Object.assign(sh, metaFrom(d));
   sh.eps = normEps(d._embedded?.episodes);
   sh.synced = Date.now();
+  detectChanges(sh, prev);
   updateFresh(sh);
   await refreshStream(sh, false);
 }
@@ -277,6 +317,7 @@ async function syncAll(manual) {
   }
   save(); syncing = false; $('syncBtn').classList.remove('spin');
   render(); if (openId) renderDetail();
+  showAlerts();
   if (manual) toast(fail ? `Updated, ${fail} show(s) failed` : 'Up to date');
 }
 function checkAired() {
@@ -302,7 +343,7 @@ function card({ s, st }) {
   return `<button class="card" data-open="${s.id}">
     ${s.image ? `<img class="poster" loading="lazy" src="${esc(s.image)}" alt="">` : `<div class="poster"></div>`}
     <div class="cbody">
-      <div class="title">${s.fav ? '<span class="star" aria-label="Favorite">&#9733;</span>' : ''}<span class="t">${esc(s.name)}</span>${isNew ? `<span class="pill">NEW ${s.fresh.length}</span>` : ''}${isTogether(s) ? `<span class="tag">Together</span>` : ''}${s.list === 'watching' && s.occasional ? `<span class="tag">Occasional</span>` : ''}${between ? `<span class="tag">${s.status === 'Ended' ? 'Ended' : 'Between seasons'}</span>` : ''}</div>
+      <div class="title">${s.fav ? '<span class="star" aria-label="Favorite">&#9733;</span>' : ''}<span class="t">${esc(s.name)}</span>${isNew ? `<span class="pill">NEW ${s.fresh.length}</span>` : ''}<span class="tag">${isTogether(s) ? 'Together' : 'Just me'}</span>${s.list === 'watching' && s.occasional ? `<span class="tag">Occasional</span>` : ''}${s.list === 'watching' && s.paused ? `<span class="tag">Paused</span>` : ''}${between ? `<span class="tag">${s.status === 'Ended' ? 'Ended' : 'Between seasons'}</span>` : ''}</div>
       <div class="sub">${line}</div>
       <div class="stream">${esc(names)}</div>
     </div></button>`;
@@ -310,9 +351,9 @@ function card({ s, st }) {
 function render() {
   const all = Object.values(state.shows);
   const W = all.filter(s => s.list === 'watching'), L = all.filter(s => s.list === 'watchlist');
-  const WV = W.filter(s => (!s.occasional || state.ui.occ) && (state.ui.btw || !isBetween(s)));
+  const WV = W.filter(s => (!s.occasional || state.ui.occ) && (!s.paused || state.ui.pau) && (state.ui.btw || !isBetween(s)));
   $('cW').textContent = WV.length || ''; $('cL').textContent = L.length || '';
-  $('occ').checked = !!state.ui.occ; $('btw').checked = !!state.ui.btw;
+  $('occ').checked = !!state.ui.occ; $('btw').checked = !!state.ui.btw; $('pau').checked = !!state.ui.pau;
   document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === state.ui.tab));
   const watching = state.ui.tab === 'watching';
   $('controls').hidden = !watching || !W.length;
@@ -320,7 +361,9 @@ function render() {
   document.querySelectorAll('#who .chip').forEach(c => c.classList.toggle('on', c.dataset.who === 'together' ? state.ui.showT : state.ui.showM));
   $('who').hidden = !(watching ? W.length : L.length);
   $('sort').value = state.ui.sort;
-  let rows = (watching ? WV : L).map(s => ({ s, st: stats(s) }));
+  // "Paused" chip: every paused show, regardless of the Occasional / Between / Paused boxes / between-seasons hiding.
+  const base = !watching ? L : state.ui.filter === 'paused' ? W.filter(s => s.paused) : WV;
+  let rows = base.map(s => ({ s, st: stats(s) }));
   rows = rows.filter(r => isTogether(r.s) ? state.ui.showT : state.ui.showM);
   if (watching && state.ui.filter === 'behind') rows = rows.filter(r => r.st.behind > 0);
   if (watching && state.ui.filter === 'caught') rows = rows.filter(r => r.st.behind === 0);
@@ -334,8 +377,9 @@ function render() {
   });
   $('list').innerHTML = rows.length ? rows.map(card).join('') :
     `<div class="empty">${!all.length ? 'No shows yet.<br>Tap + to add one.'
-      : watching && W.length && !WV.length ? 'Everything here is hidden (occasional or between seasons).<br>Use the "Include" boxes to see them.' : 'Nothing here.'}</div>`;
-  const nw = WV.filter(s => s.fresh && s.fresh.length);
+      : watching && state.ui.filter === 'paused' ? 'No paused shows.'
+      : watching && W.length && !WV.length ? 'Everything here is hidden (occasional, paused or between seasons).<br>Check the Occasional, Paused or Between boxes to see them.' : 'Nothing here.'}</div>`;
+  const nw = WV.filter(s => !s.paused && s.fresh && s.fresh.length);
   $('banner').innerHTML = nw.length ? `<div class="banner"><b>New episodes:</b> ` +
     nw.map(s => `<button data-open="${s.id}">${esc(s.name)} (${s.fresh.length})</button>`).join('') + `</div>` : '';
 }
@@ -387,7 +431,7 @@ function renderDetail(initial) {
     </div>
     <div class="btns">
       ${sh.list === 'watching'
-        ? `<button class="btn" data-act="mark-all">Mark all aired watched</button><button class="btn" data-act="occ">${sh.occasional ? 'Make regular' : 'Mark occasional'}</button><button class="btn" data-act="to-list">Move to To-watch</button>`
+        ? `<button class="btn" data-act="mark-all">Mark all aired watched</button><button class="btn" data-act="occ">${sh.occasional ? 'Make regular' : 'Mark occasional'}</button><button class="btn" data-act="pause">${sh.paused ? 'Resume' : 'Pause'}</button><button class="btn" data-act="to-list">Move to To-watch</button>`
         : `<button class="btn pri" data-act="to-watching">Start watching</button>`}
       <button class="btn" data-act="fav">${sh.fav ? '&#9733; Unfavorite' : '&#9734; Favorite'}</button>
       <button class="btn" data-act="restream">Refresh streaming</button>
@@ -440,8 +484,8 @@ async function addShow(id, list, occ) {
   try { await syncShow(sh); } catch (e) { toast('Added, but could not load episodes yet'); }
   state.shows[id] = sh; save(); render();
   if (list === 'watching' && !occ) openDetail(id);
-  else { closeSheet(); toast(occ ? 'Added as Occasional (hidden unless "Include Occasional" is checked)' : 'Added to To-watch'); }
-  if (list === 'watching' && isBetween(sh)) setTimeout(() => toast('Added. It\'s between seasons, so it\'s hidden unless "Include between seasons" is checked'), occ ? 2800 : 0);
+  else { closeSheet(); toast(occ ? 'Added as Occasional (hidden unless the "Occasional" box is checked)' : 'Added to To-watch'); }
+  if (list === 'watching' && isBetween(sh)) setTimeout(() => toast('Added. It\'s between seasons, so it\'s hidden unless the "Between" box is checked'), occ ? 2800 : 0);
 }
 
 function openSettings() {
@@ -472,8 +516,9 @@ function openSettings() {
 
 /* ---------- events ---------- */
 document.addEventListener('click', async e => {
-  const t = e.target.closest('[data-open],[data-act],[data-tab],[data-filter],[data-who],#fab,#syncBtn,#setBtn');
+  const t = e.target.closest('[data-open],[data-act],[data-tab],[data-filter],[data-who],[data-adismiss],#fab,#syncBtn,#setBtn');
   if (!t) { if (e.target === $('ov')) closeSheet(); return; }
+  if (t.dataset.adismiss) { state.alerts = []; save(); return showAlerts(); }
   if (t.dataset.open) return openDetail(t.dataset.open);
   if (t.dataset.tab) { state.ui.tab = t.dataset.tab; save(); return render(); }
   if (t.dataset.filter) { state.ui.filter = t.dataset.filter; save(); return render(); }
@@ -510,9 +555,10 @@ document.addEventListener('click', async e => {
   }
   else if (act === 'mark-all') { const now = Date.now(); sh.eps.filter(x => x.t != null && x.t <= now).forEach(x => w[x.id] = 1); }
   else if (act === 'occ') sh.occasional = !sh.occasional;
+  else if (act === 'pause') sh.paused = !sh.paused;
   else if (act === 'fav') sh.fav = !sh.fav;
   else if (act === 'who') sh.together = t.dataset.v === 'together';
-  else if (act === 'to-list') { sh.list = 'watchlist'; sh.occasional = false; }
+  else if (act === 'to-list') { sh.list = 'watchlist'; sh.occasional = false; sh.paused = false; }
   else if (act === 'to-watching') { sh.list = 'watching'; sh.fresh = []; }
   else if (act === 'restream') {
     toast('Checking…'); try { await refreshStream(sh, true); } catch (e) {}
@@ -529,11 +575,12 @@ $('sheet').addEventListener('toggle', e => {
 }, true);
 $('occ').addEventListener('change', e => { state.ui.occ = e.target.checked; save(); render(); });
 $('btw').addEventListener('change', e => { state.ui.btw = e.target.checked; save(); render(); });
+$('pau').addEventListener('change', e => { state.ui.pau = e.target.checked; save(); render(); });
 $('sort').addEventListener('change', e => { state.ui.sort = e.target.value; save(); render(); });
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkAired(); render(); syncAll(false); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkAired(); render(); showAlerts(); syncAll(false); } });
 
 /* ---------- start ---------- */
-checkAired(); render(); syncAll(false);
+checkAired(); render(); showAlerts(); syncAll(false);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 </body>
