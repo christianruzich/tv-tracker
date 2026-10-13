@@ -31,7 +31,7 @@ A phone-first TV tracker. It's a static site (no server), and your data lives in
 **Streaming**
 - By default each show lists its original network or streamer from TVmaze.
 - With a free **TMDB API key** (Settings), shows list the US services that carry them (subscription, free and ad-supported; rent/buy are not counted).
-- **My streaming services** (Settings, needs the key): tick the services you have. Cards and show pages then list only those. If a show isn't on any of your services, the card says "Not on your streaming services" and the show's page lists where it is available. With nothing ticked, every service is listed.
+- **My streaming services** (Settings, needs the key): tick the services you have. Cards and show pages then list only those. If a show isn't on any of your services, the card says "Not on your streaming services" and the show's page lists where it is available. With nothing ticked, every service is listed. The list is A–Z with your ticked services pinned at the top. Tap **Hide** on services you'll never use to remove them from the list (**Show hidden** brings them back). Ticked services can't be hidden.
 - Streaming info refreshes at most every 14 days per show. **Refresh streaming** on a show's page forces it.
 
 ## Put it on GitHub Pages

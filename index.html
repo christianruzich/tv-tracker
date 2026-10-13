@@ -44,7 +44,10 @@ h1{font-size:22px;margin:0;letter-spacing:-.01em}
 .seg button{flex:1;padding:10px;font-weight:600;color:var(--mute)}
 .seg button.on{background:var(--accent);color:var(--accent-ink)}
 .svc{display:flex;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid var(--line);font-size:16px;color:var(--ink)}
+.svc label{flex:1;min-width:0;display:flex;align-items:center;gap:12px;cursor:pointer}
 .svc input{width:20px;height:20px;accent-color:var(--accent);flex:none}
+.svc.dim{opacity:.55}
+.hidebtn{font-size:13px;color:var(--mute);padding:6px 10px;border-radius:8px;border:1px solid var(--line);flex:none}
 .star{color:#e0a100;flex:none;margin-right:-2px}
 .tag{font-size:11px;font-weight:700;color:var(--mute);border:1px solid var(--line);border-radius:999px;padding:1px 7px;flex:none}
 select{margin-left:auto;font:inherit;font-size:14px;padding:6px 8px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
@@ -154,6 +157,7 @@ function normUI() {
   u.pau ??= false;
   state.alerts ||= []; // pending show-update pop-ups
   state.settings.myServices ||= []; // TMDB provider IDs the user subscribes to
+  state.settings.hiddenServices ||= []; // provider IDs hidden from the checkbox list
   if (u.showT === undefined || u.showM === undefined) { u.showT = u.who !== 'me'; u.showM = u.who !== 'together'; }
   delete u.who;
 }
@@ -520,7 +524,7 @@ async function addShow(id, list, occ) {
 }
 
 const hasTmdbKey = () => !!(state.settings.tmdbKey || '').trim();
-let providerErr = false; // not saved
+let providerErr = false, showHiddenSvc = false; // not saved
 async function ensureProviders(force) {
   providerErr = false;
   try { await loadProviders(force); } catch (e) { providerErr = true; }
@@ -541,11 +545,16 @@ function renderServices() {
   const match = p => !q || p.name.toLowerCase().includes(q);
   // Ticked services pinned to the top, then everything else; each group A-Z.
   const az = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  // Hidden services drop out of the list (unless "Show hidden" is on). Ticked services are never hidden.
+  const hid = new Set(state.settings.hiddenServices || []);
+  const isHid = p => hid.has(p.id) && !mine.has(p.id);
   const picked = P.list.filter(p => mine.has(p.id) && match(p)).sort(az);
-  const others = P.list.filter(p => !mine.has(p.id) && match(p)).sort(az);
-  const shown = [...picked, ...others];
-  const row = p => `<label class="svc"><input type="checkbox" data-svc="${p.id}" ${mine.has(p.id) ? 'checked' : ''}> ${esc(p.name)}</label>`;
-  box.innerHTML = shown.map(row).join('') || '<div class="small" style="margin:8px 0">No matches.</div>';
+  const others = P.list.filter(p => !mine.has(p.id) && (showHiddenSvc || !hid.has(p.id)) && match(p)).sort(az);
+  const nHidden = P.list.filter(isHid).length;
+  const row = p => `<div class="svc${isHid(p) ? ' dim' : ''}"><label><input type="checkbox" data-svc="${p.id}" ${mine.has(p.id) ? 'checked' : ''}> ${esc(p.name)}</label>` +
+    (mine.has(p.id) ? '' : `<button class="hidebtn" data-hide="${p.id}">${isHid(p) ? 'Unhide' : 'Hide'}</button>`) + `</div>`;
+  box.innerHTML = ([...picked, ...others].map(row).join('') || '<div class="small" style="margin:8px 0">No matches.</div>') +
+    (nHidden || showHiddenSvc ? `<div class="btns"><button class="btn" data-showhidden="1">${showHiddenSvc ? 'Stop showing hidden' : `Show hidden (${nHidden})`}</button></div>` : '');
 }
 function openSettings() {
   openId = null;
@@ -556,7 +565,7 @@ function openSettings() {
     <input type="password" id="tk" placeholder="TMDB key or token" value="${esc(state.settings.tmdbKey)}" autocomplete="off">
     <div class="btns"><button class="btn pri" data-act="savekey">Save key &amp; refresh streaming</button></div>
     <hr style="border:0;border-top:1px solid var(--line)">
-    <p><b>My streaming services</b><br><span class="small">Tick the services you have. Show tiles and pages then list only those, and say "Not on your streaming services" when a show isn't on any of them. With none ticked, everything is listed.</span></p>
+    <p><b>My streaming services</b><br><span class="small">Tick the services you have. Show tiles and pages then list only those, and say "Not on your streaming services" when a show isn't on any of them. With none ticked, everything is listed. Tap <b>Hide</b> on services you'll never use to shorten the list.</span></p>
     <input type="search" id="svcq" placeholder="Search services…" autocomplete="off">
     <div id="svc"></div>
     <hr style="border:0;border-top:1px solid var(--line);margin-top:14px">
@@ -565,6 +574,7 @@ function openSettings() {
     <input type="file" id="file" accept="application/json" hidden>
     <p class="small">Episode data: <a href="https://www.tvmaze.com" target="_blank" rel="noopener">TVmaze</a> (CC BY-SA). Streaming data: JustWatch via TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
   </div>`);
+  showHiddenSvc = false;
   $('svcq').addEventListener('input', renderServices);
   renderServices();
   if (hasTmdbKey() && !state.settings.providers) ensureProviders();
@@ -582,8 +592,14 @@ function openSettings() {
 
 /* ---------- events ---------- */
 document.addEventListener('click', async e => {
-  const t = e.target.closest('[data-open],[data-act],[data-tab],[data-filter],[data-who],[data-adismiss],#fab,#syncBtn,#setBtn');
+  const t = e.target.closest('[data-open],[data-act],[data-tab],[data-filter],[data-who],[data-adismiss],[data-hide],[data-showhidden],#fab,#syncBtn,#setBtn');
   if (!t) { if (e.target === $('ov')) closeSheet(); return; }
+  if (t.dataset.hide) {
+    const id = Number(t.dataset.hide), set = new Set(state.settings.hiddenServices || []);
+    if (set.has(id)) set.delete(id); else set.add(id);
+    state.settings.hiddenServices = [...set]; save(); return renderServices();
+  }
+  if (t.dataset.showhidden) { showHiddenSvc = !showHiddenSvc; return renderServices(); }
   if (t.dataset.adismiss) { state.alerts = []; save(); return showAlerts(); }
   if (t.dataset.open) return openDetail(t.dataset.open);
   if (t.dataset.tab) { state.ui.tab = t.dataset.tab; save(); return render(); }
@@ -645,6 +661,7 @@ document.addEventListener('change', e => {
   const c = e.target.closest && e.target.closest('[data-svc]'); if (!c) return;
   const id = Number(c.dataset.svc), set = new Set(state.settings.myServices || []);
   if (c.checked) set.add(id); else set.delete(id);
+  if (c.checked) state.settings.hiddenServices = (state.settings.hiddenServices || []).filter(x => x !== id);
   state.settings.myServices = [...set]; save(); renderServices(); render();
 });
 $('occ').addEventListener('change', e => { state.ui.occ = e.target.checked; save(); render(); });
