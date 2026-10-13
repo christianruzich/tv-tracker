@@ -112,6 +112,7 @@ summary .btn{padding:5px 9px;font-size:12px}
 <div class="controls" id="who">
   <button class="chip" data-who="together">Together</button>
   <button class="chip" data-who="me">Just me</button>
+  <select id="sort" aria-label="Sort"></select>
 </div>
 <div class="controls" id="controls">
   <button class="chip" data-filter="all">All</button>
@@ -121,11 +122,6 @@ summary .btn{padding:5px 9px;font-size:12px}
   <label class="opt"><input type="checkbox" id="occ"> Occasional</label>
   <label class="opt"><input type="checkbox" id="btw"> Between</label>
   <label class="opt"><input type="checkbox" id="pau"> Paused</label>
-  <select id="sort" aria-label="Sort">
-    <option value="title">Title</option>
-    <option value="behind">Most behind</option>
-    <option value="next">Next airing</option>
-  </select>
 </div>
 <main id="list"></main>
 <button id="fab" aria-label="Add show">+</button>
@@ -155,6 +151,8 @@ function normUI() {
   u.occ ??= false;
   u.btw ??= false;
   u.pau ??= false;
+  u.lsort ??= 'title'; // To-watch sort: 'title' | 'next' | 'recent'
+  if (u.lsort === 'added') u.lsort = 'recent';
   state.alerts ||= []; // pending show-update pop-ups
   state.settings.myServices ||= []; // TMDB provider IDs the user subscribes to
   state.settings.hiddenServices ||= []; // provider IDs hidden from the checkbox list
@@ -287,6 +285,8 @@ function fmtDate(t) {
 }
 // Default is Together; only an explicit "Just me" choice stores false.
 const isTogether = s => s.together !== false;
+// When a show joined its current list (moving a show to To-watch restarts this).
+const listedKey = s => s.listedAt ?? s.added ?? 0;
 const sortKey = n => n.replace(/^(the|a|an)\s+/i, '').toLowerCase();
 
 /* ---------- sync ---------- */
@@ -392,19 +392,26 @@ function render() {
   document.querySelectorAll('#controls .chip').forEach(c => c.classList.toggle('on', c.dataset.filter === state.ui.filter));
   document.querySelectorAll('#who .chip').forEach(c => c.classList.toggle('on', c.dataset.who === 'together' ? state.ui.showT : state.ui.showM));
   $('who').hidden = !(watching ? W.length : L.length);
-  $('sort').value = state.ui.sort;
+  // One sort dropdown; each tab remembers its own choice. "Most behind" only makes sense for Watching.
+  const opts = watching ? [['title', 'Title'], ['behind', 'Most behind'], ['next', 'Next airing'], ['recent', 'Most recent']]
+                        : [['title', 'Title'], ['next', 'Next airing'], ['recent', 'Most recent']];
+  const sel = $('sort'), cur = watching ? state.ui.sort : state.ui.lsort;
+  const key = opts.map(o => o[0]).join();
+  if (sel.dataset.opts !== key) { sel.innerHTML = opts.map(o => `<option value="${o[0]}">${o[1]}</option>`).join(''); sel.dataset.opts = key; }
+  sel.value = opts.some(o => o[0] === cur) ? cur : 'title';
   // "Paused" chip: every paused show, regardless of the Occasional / Between / Paused boxes / between-seasons hiding.
   const base = !watching ? L : state.ui.filter === 'paused' ? W.filter(s => s.paused) : WV;
   let rows = base.map(s => ({ s, st: stats(s) }));
   rows = rows.filter(r => isTogether(r.s) ? state.ui.showT : state.ui.showM);
   if (watching && state.ui.filter === 'behind') rows = rows.filter(r => r.st.behind > 0);
   if (watching && state.ui.filter === 'caught') rows = rows.filter(r => r.st.behind === 0);
-  const by = state.ui.sort;
+  const by = watching ? state.ui.sort : state.ui.lsort;
   rows.sort((a, b) => {
     const f = (b.s.fav ? 1 : 0) - (a.s.fav ? 1 : 0);
     if (f) return f;
+    if (by === 'recent') return (listedKey(b.s) - listedKey(a.s)) || sortKey(a.s.name).localeCompare(sortKey(b.s.name));
     if (watching && by === 'behind') return b.st.behind - a.st.behind || sortKey(a.s.name).localeCompare(sortKey(b.s.name));
-    if (watching && by === 'next') return (a.st.next?.t ?? 9e15) - (b.st.next?.t ?? 9e15);
+    if (by === 'next') return (a.st.next?.t ?? 9e15) - (b.st.next?.t ?? 9e15);
     return sortKey(a.s.name).localeCompare(sortKey(b.s.name));
   });
   $('list').innerHTML = rows.length ? rows.map(card).join('') :
@@ -642,8 +649,8 @@ document.addEventListener('click', async e => {
   else if (act === 'pause') sh.paused = !sh.paused;
   else if (act === 'fav') sh.fav = !sh.fav;
   else if (act === 'who') sh.together = t.dataset.v === 'together';
-  else if (act === 'to-list') { sh.list = 'watchlist'; sh.occasional = false; sh.paused = false; }
-  else if (act === 'to-watching') { sh.list = 'watching'; sh.fresh = []; }
+  else if (act === 'to-list') { sh.list = 'watchlist'; sh.occasional = false; sh.paused = false; sh.listedAt = Date.now(); }
+  else if (act === 'to-watching') { sh.list = 'watching'; sh.fresh = []; sh.listedAt = Date.now(); }
   else if (act === 'restream') {
     toast('Checking…'); try { await refreshStream(sh, true); } catch (e) {}
   }
@@ -667,7 +674,7 @@ document.addEventListener('change', e => {
 $('occ').addEventListener('change', e => { state.ui.occ = e.target.checked; save(); render(); });
 $('btw').addEventListener('change', e => { state.ui.btw = e.target.checked; save(); render(); });
 $('pau').addEventListener('change', e => { state.ui.pau = e.target.checked; save(); render(); });
-$('sort').addEventListener('change', e => { state.ui.sort = e.target.value; save(); render(); });
+$('sort').addEventListener('change', e => { state.ui[state.ui.tab === 'watching' ? 'sort' : 'lsort'] = e.target.value; save(); render(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkAired(); render(); showAlerts(); syncAll(false); } });
 
 /* ---------- start ---------- */

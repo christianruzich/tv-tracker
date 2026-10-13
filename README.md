@@ -8,7 +8,7 @@ A phone-first TV tracker. It's a static site (no server), and your data lives in
 - **Watching** and **To-watch** tabs. Add a show by searching TVmaze, then choose **Watching**, **Occasional** or **To-watch**.
 - Open any show to see its seasons and episodes. Tap an episode to mark it watched, or mark a whole season / all aired episodes at once.
 - Each Watching card shows how many episodes you're behind and when the next one airs.
-- Sort by **Title**, **Most behind** or **Next airing**. **Favorites** (★) always sort to the top.
+- One **Sort** dropdown above the list: **Title**, **Most behind** (Watching only), **Next airing** or **Most recent**. Each tab remembers its own choice. **Most recent** puts the newest additions first; a show moved between Watching and To-watch counts as added when you moved it. **Favorites** (★) always sort to the top.
 
 **Who's watching**
 - Every show is **Together** (default) or **Just me**, set on the show's page. Each card is tagged.
