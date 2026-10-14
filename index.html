@@ -380,11 +380,31 @@ function card({ s, st }) {
       <div class="stream">${esc(names)}</div>
     </div></button>`;
 }
+// Watching shows left after the Occasional / Paused / Between boxes.
+function watchingVisible() {
+  return Object.values(state.shows).filter(s => s.list === 'watching' && (!s.occasional || state.ui.occ) &&
+    (!s.paused || state.ui.pau) && (state.ui.btw || !isBetween(s)));
+}
+// The rows a tab lists (unsorted) for the current Together / Just me chips, the All / Behind / Caught up /
+// Paused chip and the boxes. The list and the tab counts both use this, so they always agree.
+function tabRows(tab) {
+  const all = Object.values(state.shows);
+  const base = tab === 'watching'
+    // "Paused" chip: every paused show, regardless of the Occasional / Between / Paused boxes.
+    ? (state.ui.filter === 'paused' ? all.filter(s => s.list === 'watching' && s.paused) : watchingVisible())
+    : all.filter(s => s.list === 'watchlist');
+  let rows = base.map(s => ({ s, st: stats(s) }));
+  rows = rows.filter(r => isTogether(r.s) ? state.ui.showT : state.ui.showM);
+  if (tab === 'watching' && state.ui.filter === 'behind') rows = rows.filter(r => r.st.behind > 0);
+  if (tab === 'watching' && state.ui.filter === 'caught') rows = rows.filter(r => r.st.behind === 0);
+  return rows;
+}
 function render() {
   const all = Object.values(state.shows);
   const W = all.filter(s => s.list === 'watching'), L = all.filter(s => s.list === 'watchlist');
-  const WV = W.filter(s => (!s.occasional || state.ui.occ) && (!s.paused || state.ui.pau) && (state.ui.btw || !isBetween(s)));
-  $('cW').textContent = WV.length || ''; $('cL').textContent = L.length || '';
+  const WV = watchingVisible();
+  // Tab counts = exactly what that tab would list with the current chips, filters and boxes.
+  $('cW').textContent = W.length ? tabRows('watching').length : ''; $('cL').textContent = L.length ? tabRows('watchlist').length : '';
   $('occ').checked = !!state.ui.occ; $('btw').checked = !!state.ui.btw; $('pau').checked = !!state.ui.pau;
   document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === state.ui.tab));
   const watching = state.ui.tab === 'watching';
@@ -399,12 +419,7 @@ function render() {
   const key = opts.map(o => o[0]).join();
   if (sel.dataset.opts !== key) { sel.innerHTML = opts.map(o => `<option value="${o[0]}">${o[1]}</option>`).join(''); sel.dataset.opts = key; }
   sel.value = opts.some(o => o[0] === cur) ? cur : 'title';
-  // "Paused" chip: every paused show, regardless of the Occasional / Between / Paused boxes / between-seasons hiding.
-  const base = !watching ? L : state.ui.filter === 'paused' ? W.filter(s => s.paused) : WV;
-  let rows = base.map(s => ({ s, st: stats(s) }));
-  rows = rows.filter(r => isTogether(r.s) ? state.ui.showT : state.ui.showM);
-  if (watching && state.ui.filter === 'behind') rows = rows.filter(r => r.st.behind > 0);
-  if (watching && state.ui.filter === 'caught') rows = rows.filter(r => r.st.behind === 0);
+  let rows = tabRows(state.ui.tab);
   const by = watching ? state.ui.sort : state.ui.lsort;
   rows.sort((a, b) => {
     const f = (b.s.fav ? 1 : 0) - (a.s.fav ? 1 : 0);
