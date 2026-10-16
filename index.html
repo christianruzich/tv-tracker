@@ -55,14 +55,15 @@ select{margin-left:auto;font:inherit;font-size:14px;padding:6px 8px;border-radiu
 .banner{background:var(--card);border:1px solid var(--new);border-radius:12px;padding:10px 12px;font-size:14px}
 .banner b{color:var(--new)}
 .banner button{color:var(--accent);font-weight:600;margin-right:10px}
-main{padding:6px 16px;display:grid;gap:10px}
-.nextbtn{margin-left:auto;flex:none;width:34px;height:34px;border-radius:50%;border:2px solid var(--good);color:var(--good);font-size:18px;line-height:1;display:grid;place-items:center;background:transparent}
+main{padding:6px 16px;display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.nextbtn{align-self:center;margin-left:auto;flex:none;width:42px;height:42px;border-radius:50%;border:2px solid var(--good);color:var(--good);display:grid;place-items:center;background:transparent}
 .nextbtn:active{background:var(--good);color:var(--card)}
 .card{cursor:pointer;display:flex;gap:12px;background:var(--card);border-radius:14px;padding:10px;box-shadow:var(--shadow);border:1px solid var(--line);text-align:left;width:100%}
 .poster{width:56px;height:80px;border-radius:8px;background:var(--line);object-fit:cover;flex:none}
 .cbody{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
-.title{font-weight:650;font-size:16px;display:flex;gap:8px;align-items:center}
-.title span.t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.title{font-weight:650;font-size:16px;display:flex;flex-wrap:wrap;gap:2px 8px;align-items:center;min-width:0}
+.title .tn{display:flex;gap:8px;align-items:center;min-width:0;max-width:100%}
+.title span.t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;max-width:100%}
 .pill{font-size:11px;font-weight:700;color:#fff;background:var(--new);border-radius:999px;padding:2px 7px;flex:none}
 .sub{font-size:14px;color:var(--mute)}
 .stream{font-size:13px;color:var(--ink)}
@@ -375,14 +376,14 @@ function card({ s, st }) {
   const names = si.mode === 'none' ? 'Not on your streaming services' : si.names.length ? si.names.join(', ') : 'Streaming info unavailable';
   const isNew = s.list === 'watching' && s.fresh && s.fresh.length;
   const nextBtn = s.list === 'watching' && st.nextUnwatched
-    ? `<button class="nextbtn" data-act="mark-next" data-id="${s.id}" aria-label="Mark ${lab(st.nextUnwatched)} watched" title="Mark ${lab(st.nextUnwatched)} watched">&#10003;</button>` : '';
+    ? `<button class="nextbtn" data-act="mark-next" data-id="${s.id}" aria-label="Mark ${lab(st.nextUnwatched)} watched" title="Mark ${lab(st.nextUnwatched)} watched"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="12" rx="2.5"/><path d="M8 3l4 4 4-4"/></svg></button>` : '';
   return `<div class="card" role="button" tabindex="0" data-open="${s.id}">
     ${s.image ? `<img class="poster" loading="lazy" src="${esc(s.image)}" alt="">` : `<div class="poster"></div>`}
     <div class="cbody">
-      <div class="title">${s.fav ? '<span class="star" aria-label="Favorite">&#9733;</span>' : ''}<span class="t">${esc(s.name)}</span>${isNew ? `<span class="pill">NEW ${s.fresh.length}</span>` : ''}<span class="tag">${isTogether(s) ? 'Together' : 'Just me'}</span>${s.list === 'watching' && s.occasional ? `<span class="tag">Occasional</span>` : ''}${s.list === 'watching' && s.paused ? `<span class="tag">Paused</span>` : ''}${between ? `<span class="tag">${s.status === 'Ended' ? 'Ended' : 'Between seasons'}</span>` : ''}${nextBtn}</div>
+      <div class="title"><span class="tn">${s.fav ? '<span class="star" aria-label="Favorite">&#9733;</span>' : ''}<span class="t">${esc(s.name)}</span></span>${isNew ? `<span class="pill">NEW ${s.fresh.length}</span>` : ''}<span class="tag">${isTogether(s) ? 'Together' : 'Just me'}</span>${s.list === 'watching' && s.occasional ? `<span class="tag">Occasional</span>` : ''}${s.list === 'watching' && s.paused ? `<span class="tag">Paused</span>` : ''}${between ? `<span class="tag">${s.status === 'Ended' ? 'Ended' : 'Between seasons'}</span>` : ''}</div>
       <div class="sub">${line}</div>
       <div class="stream">${esc(names)}</div>
-    </div></div>`;
+    </div>${nextBtn}</div>`;
 }
 // Watching shows left after the Occasional / Paused / Between boxes.
 function watchingVisible() {
