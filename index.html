@@ -56,7 +56,9 @@ select{margin-left:auto;font:inherit;font-size:14px;padding:6px 8px;border-radiu
 .banner b{color:var(--new)}
 .banner button{color:var(--accent);font-weight:600;margin-right:10px}
 main{padding:6px 16px;display:grid;gap:10px}
-.card{display:flex;gap:12px;background:var(--card);border-radius:14px;padding:10px;box-shadow:var(--shadow);border:1px solid var(--line);text-align:left;width:100%}
+.nextbtn{margin-left:auto;flex:none;width:34px;height:34px;border-radius:50%;border:2px solid var(--good);color:var(--good);font-size:18px;line-height:1;display:grid;place-items:center;background:transparent}
+.nextbtn:active{background:var(--good);color:var(--card)}
+.card{cursor:pointer;display:flex;gap:12px;background:var(--card);border-radius:14px;padding:10px;box-shadow:var(--shadow);border:1px solid var(--line);text-align:left;width:100%}
 .poster{width:56px;height:80px;border-radius:8px;background:var(--line);object-fit:cover;flex:none}
 .cbody{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
 .title{font-weight:650;font-size:16px;display:flex;gap:8px;align-items:center}
@@ -372,13 +374,15 @@ function card({ s, st }) {
   const si = streamInfo(s);
   const names = si.mode === 'none' ? 'Not on your streaming services' : si.names.length ? si.names.join(', ') : 'Streaming info unavailable';
   const isNew = s.list === 'watching' && s.fresh && s.fresh.length;
-  return `<button class="card" data-open="${s.id}">
+  const nextBtn = s.list === 'watching' && st.nextUnwatched
+    ? `<button class="nextbtn" data-act="mark-next" data-id="${s.id}" aria-label="Mark ${lab(st.nextUnwatched)} watched" title="Mark ${lab(st.nextUnwatched)} watched">&#10003;</button>` : '';
+  return `<div class="card" role="button" tabindex="0" data-open="${s.id}">
     ${s.image ? `<img class="poster" loading="lazy" src="${esc(s.image)}" alt="">` : `<div class="poster"></div>`}
     <div class="cbody">
-      <div class="title">${s.fav ? '<span class="star" aria-label="Favorite">&#9733;</span>' : ''}<span class="t">${esc(s.name)}</span>${isNew ? `<span class="pill">NEW ${s.fresh.length}</span>` : ''}<span class="tag">${isTogether(s) ? 'Together' : 'Just me'}</span>${s.list === 'watching' && s.occasional ? `<span class="tag">Occasional</span>` : ''}${s.list === 'watching' && s.paused ? `<span class="tag">Paused</span>` : ''}${between ? `<span class="tag">${s.status === 'Ended' ? 'Ended' : 'Between seasons'}</span>` : ''}</div>
+      <div class="title">${s.fav ? '<span class="star" aria-label="Favorite">&#9733;</span>' : ''}<span class="t">${esc(s.name)}</span>${isNew ? `<span class="pill">NEW ${s.fresh.length}</span>` : ''}<span class="tag">${isTogether(s) ? 'Together' : 'Just me'}</span>${s.list === 'watching' && s.occasional ? `<span class="tag">Occasional</span>` : ''}${s.list === 'watching' && s.paused ? `<span class="tag">Paused</span>` : ''}${between ? `<span class="tag">${s.status === 'Ended' ? 'Ended' : 'Between seasons'}</span>` : ''}${nextBtn}</div>
       <div class="sub">${line}</div>
       <div class="stream">${esc(names)}</div>
-    </div></button>`;
+    </div></div>`;
 }
 // Watching shows left after the Occasional / Paused / Between boxes.
 function watchingVisible() {
@@ -470,7 +474,7 @@ function renderDetail(initial) {
       <summary>Season ${sn}
         ${aired.length ? `<button class="btn" data-act="season" data-s="${sn}">${all ? 'Unmark' : 'Mark all'}</button>` : ''}
         <span class="cnt">${done}/${aired.length} aired${eps.length > aired.length ? ` · ${eps.length} total` : ''}</span></summary>
-      ${eps.map(e => {
+      ${eps.slice().reverse().map(e => {
         const isAired = e.t != null && e.t <= now;
         return `<button class="ep ${w[e.id] ? 'done' : ''} ${isAired ? '' : 'future'}" data-act="ep" data-e="${e.id}" ${isAired ? '' : 'disabled'}>
           <span class="box">${w[e.id] ? '&#10003;' : ''}</span><span class="n">${lab(e)}</span>
@@ -637,6 +641,11 @@ document.addEventListener('click', async e => {
   const act = t.dataset.act, sh = state.shows[openId];
   if (act === 'close') return closeSheet();
   if (act === 'add') return addShow(t.dataset.id, t.dataset.list, !!t.dataset.occ);
+  if (act === 'mark-next') {
+    const m = state.shows[t.dataset.id]; const ep = m && stats(m).nextUnwatched; if (!ep) return;
+    (m.watched ||= {})[ep.id] = 1; save(); render();
+    return toast(`Marked ${lab(ep)} watched`);
+  }
   if (act === 'svcload') { renderServices(); return ensureProviders(true); }
   if (act === 'savekey') {
     state.settings.tmdbKey = $('tk').value.trim(); save(); toast('Refreshing streaming…');
@@ -689,6 +698,9 @@ document.addEventListener('change', e => {
 $('occ').addEventListener('change', e => { state.ui.occ = e.target.checked; save(); render(); });
 $('btw').addEventListener('change', e => { state.ui.btw = e.target.checked; save(); render(); });
 $('pau').addEventListener('change', e => { state.ui.pau = e.target.checked; save(); render(); });
+document.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.card[data-open]')) { e.preventDefault(); e.target.click(); }
+});
 $('sort').addEventListener('change', e => { state.ui[state.ui.tab === 'watching' ? 'sort' : 'lsort'] = e.target.value; save(); render(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkAired(); render(); showAlerts(); syncAll(false); } });
 
