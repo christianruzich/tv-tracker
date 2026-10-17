@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101319">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TV Tracker">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>TV Tracker</title>
+<style>
+:root{
+  --bg:#f5f6f8; --card:#fff; --ink:#15181e; --mute:#6a7280; --line:#e3e6eb;
+  --accent:#4f46e5; --accent-ink:#fff; --good:#16803c; --bad:#c2410c; --new:#db2777;
+  --shadow:0 1px 2px rgba(0,0,0,.06);
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#101319; --card:#1a1e27; --ink:#eceef2; --mute:#98a1b0; --line:#2a303c;
+    --accent:#818cf8; --accent-ink:#0b0d12; --good:#4ade80; --bad:#fb923c; --new:#f472b6; --shadow:none}
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.35 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+header{position:sticky;top:0;z-index:5;background:var(--bg);padding:calc(10px + env(safe-area-inset-top)) 16px 6px;display:flex;align-items:center;justify-content:space-between}
+h1{font-size:22px;margin:0;letter-spacing:-.01em}
+.hactions{display:flex;gap:6px;align-items:center}
+.icon{width:40px;height:40px;border-radius:50%;font-size:20px;display:grid;place-items:center;color:var(--mute)}
+.icon:active{background:var(--line)}
+.spin{animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+.tabs{display:flex;gap:8px;padding:6px 16px}
+.tabs button{flex:1;padding:10px;border-radius:12px;background:var(--card);border:1px solid var(--line);font-weight:600;color:var(--mute)}
+.tabs button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.tabs span{opacity:.75;font-weight:500}
+.controls{display:flex;gap:6px;align-items:center;padding:4px 16px 8px;flex-wrap:wrap}
+.chip{padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:14px;color:var(--mute)}
+.chip.on{border-color:var(--accent);color:var(--accent);font-weight:600}
+.opt{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--mute);padding:6px 4px}
+.opt input{width:18px;height:18px;accent-color:var(--accent)}
+.seg{display:flex;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:10px 0;background:var(--card)}
+.seg button{flex:1;padding:10px;font-weight:600;color:var(--mute)}
+.seg button.on{background:var(--accent);color:var(--accent-ink)}
+.svc{display:flex;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid var(--line);font-size:16px;color:var(--ink)}
+.svc label{flex:1;min-width:0;display:flex;align-items:center;gap:12px;cursor:pointer}
+.svc input{width:20px;height:20px;accent-color:var(--accent);flex:none}
+.svc.dim{opacity:.55}
+.hidebtn{font-size:13px;color:var(--mute);padding:6px 10px;border-radius:8px;border:1px solid var(--line);flex:none}
+.star{color:#e0a100;flex:none;margin-right:-2px}
+.tag{font-size:11px;font-weight:700;color:var(--mute);border:1px solid var(--line);border-radius:999px;padding:1px 7px;flex:none}
+select{margin-left:auto;font:inherit;font-size:14px;padding:6px 8px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+#banner{margin:4px 16px 0}
+.banner{background:var(--card);border:1px solid var(--new);border-radius:12px;padding:10px 12px;font-size:14px}
+.banner b{color:var(--new)}
+.banner button{color:var(--accent);font-weight:600;margin-right:10px}
+main{padding:6px 16px;display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.nextbtn{align-self:center;margin-left:auto;flex:none;width:42px;height:42px;border-radius:50%;border:2px solid var(--good);color:var(--good);display:grid;place-items:center;background:transparent}
+.nextbtn:active{background:var(--good);color:var(--card)}
+.card{cursor:pointer;display:flex;gap:12px;background:var(--card);border-radius:14px;padding:10px;box-shadow:var(--shadow);border:1px solid var(--line);text-align:left;width:100%}
+.poster{width:56px;height:80px;border-radius:8px;background:var(--line);object-fit:cover;flex:none}
+.cbody{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+.title{font-weight:650;font-size:16px;display:flex;flex-wrap:wrap;gap:2px 8px;align-items:center;min-width:0}
+.title .tn{display:flex;gap:8px;align-items:center;min-width:0;max-width:100%}
+.title span.t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;max-width:100%}
+.pill{font-size:11px;font-weight:700;color:#fff;background:var(--new);border-radius:999px;padding:2px 7px;flex:none}
+.sub{font-size:14px;color:var(--mute)}
+.stream{font-size:13px;color:var(--ink)}
+.bad{color:var(--bad);font-weight:650}.good{color:var(--good);font-weight:650}
+.empty{text-align:center;color:var(--mute);padding:48px 16px}
+#fab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:30px;line-height:1;box-shadow:0 6px 18px rgba(0,0,0,.3);display:grid;place-items:center}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:20;display:flex;align-items:flex-end}
+.overlay[hidden]{display:none}
+.sheet{background:var(--bg);width:100%;max-height:92vh;border-radius:20px 20px 0 0;display:flex;flex-direction:column;overflow:hidden}
+.shead{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line)}
+.shead h2{margin:0;font-size:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sbody{overflow:auto;padding:12px 16px calc(24px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
+.row{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.btn{padding:9px 14px;border-radius:10px;border:1px solid var(--line);background:var(--card);font-size:14px;font-weight:600}
+.btn.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:var(--bad)}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+input[type=search],input[type=text],input[type=password]{width:100%;font:inherit;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+details{border:1px solid var(--line);border-radius:12px;background:var(--card);margin:10px 0;overflow:hidden}
+summary{list-style:none;padding:12px;display:flex;align-items:center;gap:8px;font-weight:650;cursor:pointer}
+summary::-webkit-details-marker{display:none}
+summary .cnt{color:var(--mute);font-weight:500;font-size:14px;margin-left:auto}
+summary .btn{padding:5px 9px;font-size:12px}
+.ep{display:flex;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid var(--line);width:100%;text-align:left}
+.ep .box{width:24px;height:24px;border-radius:7px;border:2px solid var(--mute);flex:none;display:grid;place-items:center;font-size:15px;color:var(--accent-ink)}
+.ep.done .box{background:var(--good);border-color:var(--good)}
+.ep.future{opacity:.5;cursor:default}
+.ep .n{font-size:13px;color:var(--mute);min-width:44px}
+.ep .nm{flex:1;min-width:0}
+.ep .dt{font-size:12px;color:var(--mute);white-space:nowrap}
+.small{font-size:13px;color:var(--mute)}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(90px + env(safe-area-inset-bottom));background:#222;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;z-index:40;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw}
+#toast.show{opacity:.95}
+</style>
+</head>
+<body>
+<header>
+  <h1>TV Tracker</h1>
+  <div class="hactions">
+    <button class="icon" id="syncBtn" aria-label="Refresh episodes">&#8635;</button>
+    <button class="icon" id="setBtn" aria-label="Settings">&#9881;</button>
+  </div>
+</header>
+<div id="banner"></div>
+<nav class="tabs">
+  <button data-tab="watching" class="on">Watching <span id="cW"></span></button>
+  <button data-tab="watchlist">To-watch <span id="cL"></span></button>
+</nav>
+<div class="controls" id="who">
+  <button class="chip" data-who="together">Together</button>
+  <button class="chip" data-who="me">Just me</button>
+  <select id="sort" aria-label="Sort"></select>
+</div>
+<div class="controls" id="controls">
+  <button class="chip" data-filter="all">All</button>
+  <button class="chip" data-filter="behind">Behind</button>
+  <button class="chip" data-filter="caught">Caught up</button>
+  <button class="chip" data-filter="paused">Paused</button>
+  <label class="opt"><input type="checkbox" id="occ"> Occasional</label>
+  <label class="opt"><input type="checkbox" id="btw"> Between</label>
+  <label class="opt"><input type="checkbox" id="pau"> Paused</label>
+</div>
+<main id="list"></main>
+<button id="fab" aria-label="Add show">+</button>
+
+<div class="overlay" id="ov" hidden><div class="sheet" id="sheet"></div></div>
+<div class="overlay" id="alertOv" hidden style="z-index:30;align-items:center;justify-content:center;padding:16px"><div class="sheet" id="alertBox" style="border-radius:20px;max-width:480px;max-height:80vh"></div></div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+const KEY = 'tvtracker.v1';
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------- state ---------- */
+function load() {
+  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.shows) return s; } catch (e) {}
+  return { shows: {}, settings: { tmdbKey: '' }, ui: { tab: 'watching', filter: 'all', sort: 'title' } };
+}
+let state = load();
+state.settings ||= { tmdbKey: '' };
+state.ui ||= { tab: 'watching', filter: 'all', sort: 'title' };
+// Together / Just me are independent toggles; both on = everything. (Migrates the older single "who" value.)
+function normUI() {
+  const u = state.ui;
+  u.occ ??= false;
+  u.btw ??= false;
+  u.pau ??= false;
+  u.lsort ??= 'title'; // To-watch sort: 'title' | 'next' | 'recent'
+  if (u.lsort === 'added') u.lsort = 'recent';
+  state.alerts ||= []; // pending show-update pop-ups
+  state.settings.myServices ||= []; // TMDB provider IDs the user subscribes to
+  state.settings.hiddenServices ||= []; // provider IDs hidden from the checkbox list
+  if (u.showT === undefined || u.showM === undefined) { u.showT = u.who !== 'me'; u.showM = u.who !== 'together'; }
+  delete u.who;
+}
+normUI();
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); }
+  catch (e) { toast('Could not save: storage is full or blocked'); }
+}
+let toastT;
+function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600); }
+
+/* ---------- API ---------- */
+async function api(url, opt) {
+  for (let i = 0; i < 3; i++) {
+    const ac = new AbortController(); const to = setTimeout(() => ac.abort(), 15000);
+    let r;
+    try { r = await fetch(url, { ...(opt || {}), signal: ac.signal }); }
+    catch (e) { throw new Error(e && e.name === 'AbortError' ? 'timed out after 15s' : ((e && e.message) || 'network error')); }
+    finally { clearTimeout(to); }
+    if (r.status === 429) { await sleep(2000 * (i + 1)); continue; }
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }
+  throw new Error('Rate limited');
+}
+function tmdb(path, params = {}) {
+  const k = (state.settings.tmdbKey || '').trim();
+  const u = new URL('https://api.themoviedb.org/3' + path);
+  const opt = {};
+  if (k.length > 40) opt.headers = { Authorization: 'Bearer ' + k }; else u.searchParams.set('api_key', k);
+  for (const [a, b] of Object.entries(params)) u.searchParams.set(a, b);
+  return api(u.toString(), opt);
+}
+async function tmdbProviders(sh) {
+  let id = null;
+  if (sh.imdb) { const f = await tmdb('/find/' + sh.imdb, { external_source: 'imdb_id' }); id = f?.tv_results?.[0]?.id; }
+  if (!id) {
+    const q = await tmdb('/search/tv', { query: sh.name, ...(sh.premiered ? { first_air_date_year: sh.premiered.slice(0, 4) } : {}) });
+    id = q?.results?.[0]?.id;
+  }
+  if (!id) return null;
+  const w = await tmdb('/tv/' + id + '/watch/providers');
+  const us = w?.results?.US;
+  if (!us) return [];
+  const seen = new Map();
+  [...(us.flatrate || []), ...(us.ads || []), ...(us.free || [])].forEach(p => seen.set(p.provider_id, p.provider_name));
+  return [...seen].map(([id, name]) => ({ id, name }));
+}
+// Master list of US streaming providers (for the "My streaming services" checkboxes).
+async function loadProviders(force) {
+  const P = state.settings.providers;
+  if (!force && P && Date.now() - P.t < 30 * 864e5) return P;
+  const r = await tmdb('/watch/providers/tv', { watch_region: 'US' });
+  if (!r || !Array.isArray(r.results)) throw new Error('No provider list');
+  const list = r.results.map(x => ({ id: x.provider_id, name: x.provider_name, p: x.display_priorities?.US ?? x.display_priority ?? 999 }))
+    .sort((a, b) => a.p - b.p || a.name.localeCompare(b.name));
+  state.settings.providers = { list, t: Date.now() };
+  save();
+  return state.settings.providers;
+}
+// What to show for a show's streaming line, given the services the user ticked.
+//  plain = no filtering possible (no TMDB data, or no services chosen yet)
+//  mine  = show only the user's services it is on
+//  none  = it is on none of the user's services; names = everywhere it is available
+function streamInfo(sh) {
+  const st = sh.stream, mine = state.settings.myServices || [];
+  if (!st || st.src !== 'justwatch' || !Array.isArray(st.providers) || !mine.length) return { mode: 'plain', names: (st && st.names) || [] };
+  const hit = st.providers.filter(p => mine.includes(p.id));
+  return hit.length ? { mode: 'mine', names: hit.map(p => p.name) } : { mode: 'none', names: st.providers.map(p => p.name) };
+}
+function normEps(list) {
+  return (list || []).map(e => ({
+    id: e.id, s: e.season, n: e.number, name: e.name || '',
+    t: e.airstamp ? Date.parse(e.airstamp) : (e.airdate ? Date.parse(e.airdate + 'T00:00:00') : null)
+  }));
+}
+function metaFrom(s) {
+  return {
+    name: s.name, premiered: s.premiered, status: s.status,
+    image: (s.image && s.image.medium) || null, imdb: s.externals?.imdb || null,
+    net: s.webChannel?.name || s.network?.name || null, url: s.url
+  };
+}
+async function refreshStream(sh, force) {
+  const now = Date.now();
+  const hasKey = !!(state.settings.tmdbKey || '').trim();
+  const fresh = sh.stream && sh.stream.src === 'justwatch' && Array.isArray(sh.stream.providers) && now - sh.stream.t < 14 * 864e5;
+  if (hasKey && (force || !fresh)) {
+    try {
+      const providers = await tmdbProviders(sh);
+      if (providers) { sh.stream = { providers, names: providers.map(p => p.name), src: 'justwatch', t: now }; return; }
+    } catch (e) { /* fall through to TVmaze network */ }
+  }
+  if (!hasKey || !sh.stream || sh.stream.src !== 'justwatch') {
+    sh.stream = { names: sh.net ? [sh.net] : [], src: 'tvmaze', t: now };
+  }
+}
+
+/* ---------- derived ---------- */
+function stats(sh, now = Date.now()) {
+  const w = sh.watched || {};
+  const aired = sh.eps.filter(e => e.t != null && e.t <= now);
+  const unwatched = aired.filter(e => !w[e.id]);
+  const upcoming = sh.eps.filter(e => e.t != null && e.t > now).sort((a, b) => a.t - b.t);
+  return { aired: aired.length, behind: unwatched.length, nextUnwatched: unwatched[0], next: upcoming[0] };
+}
+const RETURN_WINDOW = 30 * 864e5; // a show reappears this long before its next episode airs
+// "To Be Determined" is displayed as "TBD". Everywhere the app makes decisions it behaves like "Running".
+const statusLabel = s => (s === 'To Be Determined' ? 'TBD' : (s || ''));
+// Between seasons = caught up on everything aired, and the next episode is more than
+// a month away or has no date yet.
+function isBetween(sh, now = Date.now()) {
+  if (!sh.eps || !sh.eps.length) return false; // episodes never loaded: don't hide
+  const st = stats(sh, now);
+  if (st.behind > 0) return false;
+  return !st.next || st.next.t - now > RETURN_WINDOW;
+}
+function updateFresh(sh) {
+  const now = Date.now();
+  const ids = sh.eps.filter(e => e.t != null && e.t <= now).map(e => e.id);
+  if (!sh.announced) { sh.announced = ids; sh.fresh = []; return; }
+  const known = new Set(sh.announced);
+  const nw = ids.filter(i => !known.has(i));
+  if (nw.length) { sh.fresh = [...new Set([...(sh.fresh || []), ...nw])]; sh.announced = ids; }
+}
+const lab = e => `S${e.s}E${e.n ?? '?'}`;
+function fmtDate(t) {
+  const d = new Date(t), y = d.getFullYear() !== new Date().getFullYear();
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', ...(y ? { year: 'numeric' } : {}) });
+}
+// Default is Together; only an explicit "Just me" choice stores false.
+const isTogether = s => s.together !== false;
+// When a show joined its current list (moving a show to To-watch restarts this).
+const listedKey = s => s.listedAt ?? s.added ?? 0;
+const sortKey = n => n.replace(/^(the|a|an)\s+/i, '').toLowerCase();
+
+/* ---------- sync ---------- */
+// Compare a show before/after a TVmaze pull and queue pop-up alerts for:
+//  - a show moving from Running / To Be Determined to Ended
+//  - a season that now has an air date (and none had before), starting in the future
+function detectChanges(sh, prev) {
+  if (prev.first) return; // just added: nothing to compare against
+  const out = [];
+  if (['Running', 'To Be Determined'].includes(prev.status) && sh.status === 'Ended')
+    out.push({ k: `${sh.id}:ended`, id: sh.id, type: 'ended' });
+  const had = new Set(prev.eps.filter(e => e.t != null).map(e => e.s));
+  const by = {};
+  sh.eps.filter(e => e.t != null).forEach(e => (by[e.s] ??= []).push(e.t));
+  const now = Date.now();
+  for (const [s, ts] of Object.entries(by)) {
+    const t = Math.min(...ts);
+    if (!had.has(Number(s)) && t > now) out.push({ k: `${sh.id}:s${s}`, id: sh.id, type: 'season', s: Number(s), t });
+  }
+  for (const a of out) if (!state.alerts.some(x => x.k === a.k)) state.alerts.push(a);
+}
+function showAlerts() {
+  state.alerts = (state.alerts || []).filter(a => state.shows[a.id]);
+  const ov = $('alertOv');
+  if (!state.alerts.length) { ov.hidden = true; return; }
+  const row = a => {
+    const n = esc(state.shows[a.id].name);
+    return `<div class="row"><div>${a.type === 'ended'
+      ? `<b>${n}</b> is now marked <b>Ended</b>.`
+      : `<b>${n}</b>: Season ${a.s} has an air date, <b>${fmtDate(a.t)}</b>.`}</div></div>`;
+  };
+  $('alertBox').innerHTML = `<div class="shead"><h2>Show updates</h2></div>
+    <div class="sbody">${state.alerts.map(row).join('')}
+    <div class="btns"><button class="btn pri" data-adismiss="1">Dismiss</button></div></div>`;
+  ov.hidden = false;
+}
+let syncing = false;
+async function syncShow(sh) {
+  const d = await api(`https://api.tvmaze.com/shows/${sh.id}?embed=episodes`);
+  if (!d) return;
+  const prev = { first: !sh.synced, status: sh.status, eps: sh.eps || [] };
+  Object.assign(sh, metaFrom(d));
+  sh.eps = normEps(d._embedded?.episodes);
+  sh.synced = Date.now();
+  detectChanges(sh, prev);
+  updateFresh(sh);
+  await refreshStream(sh, false);
+}
+async function syncAll(manual) {
+  if (syncing) return;
+  const shows = Object.values(state.shows);
+  if (!shows.length) return;
+  syncing = true; $('syncBtn').classList.add('spin');
+  let fail = 0;
+  for (const sh of shows) {
+    if (!manual && Date.now() - (sh.synced || 0) < 30 * 60e3) continue;
+    try { await syncShow(sh); } catch (e) { fail++; }
+    await sleep(400);
+  }
+  save(); syncing = false; $('syncBtn').classList.remove('spin');
+  render(); if (openId) renderDetail();
+  showAlerts();
+  if (manual) toast(fail ? `Updated, ${fail} show(s) failed` : 'Up to date');
+}
+function checkAired() {
+  Object.values(state.shows).forEach(updateFresh);
+  save();
+}
+
+/* ---------- list view ---------- */
+function card({ s, st }) {
+  let line;
+  if (s.list === 'watching') {
+    if (st.behind > 0) line = `<span class="bad">${st.behind} behind</span> · next: ${lab(st.nextUnwatched)}`;
+    else if (st.aired > 0) line = `<span class="good">Caught up</span>`;
+    else line = 'Nothing aired yet';
+  } else {
+    line = esc(statusLabel(s.status)) + (s.premiered ? ` · ${s.premiered.slice(0, 4)}` : '');
+  }
+  if (st.next) line += ` · ${lab(st.next)} airs ${fmtDate(st.next.t)}`;
+  const between = s.list === 'watching' && isBetween(s);
+  if (between && !st.next) line += s.status === 'Ended' ? ' · Ended' : ' · no return date yet';
+  const si = streamInfo(s);
+  const names = si.mode === 'none' ? 'Not on your streaming services' : si.names.length ? si.names.join(', ') : 'Streaming info unavailable';
+  const isNew = s.list === 'watching' && s.fresh && s.fresh.length;
+  const nextBtn = s.list === 'watching' && st.nextUnwatched
+    ? `<button class="nextbtn" data-act="mark-next" data-id="${s.id}" aria-label="Mark ${lab(st.nextUnwatched)} watched" title="Mark ${lab(st.nextUnwatched)} watched"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="12" rx="2.5"/><path d="M8 3l4 4 4-4"/></svg></button>` : '';
+  return `<div class="card" role="button" tabindex="0" data-open="${s.id}">
+    ${s.image ? `<img class="poster" loading="lazy" src="${esc(s.image)}" alt="">` : `<div class="poster"></div>`}
+    <div class="cbody">
+      <div class="title"><span class="tn">${s.fav ? '<span class="star" aria-label="Favorite">&#9733;</span>' : ''}<span class="t">${esc(s.name)}</span></span>${isNew ? `<span class="pill">NEW ${s.fresh.length}</span>` : ''}<span class="tag">${isTogether(s) ? 'Together' : 'Just me'}</span>${s.list === 'watching' && s.occasional ? `<span class="tag">Occasional</span>` : ''}${s.list === 'watching' && s.paused ? `<span class="tag">Paused</span>` : ''}${between ? `<span class="tag">${s.status === 'Ended' ? 'Ended' : 'Between seasons'}</span>` : ''}</div>
+      <div class="sub">${line}</div>
+      <div class="stream">${esc(names)}</div>
+    </div>${nextBtn}</div>`;
+}
+// Watching shows left after the Occasional / Paused / Between boxes.
+function watchingVisible() {
+  return Object.values(state.shows).filter(s => s.list === 'watching' && (!s.occasional || state.ui.occ) &&
+    (!s.paused || state.ui.pau) && (state.ui.btw || !isBetween(s)));
+}
+// The rows a tab lists (unsorted) for the current Together / Just me chips, the All / Behind / Caught up /
+// Paused chip and the boxes. The list and the tab counts both use this, so they always agree.
+function tabRows(tab) {
+  const all = Object.values(state.shows);
+  const base = tab === 'watching'
+    // "Paused" chip: every paused show, regardless of the Occasional / Between / Paused boxes.
+    ? (state.ui.filter === 'paused' ? all.filter(s => s.list === 'watching' && s.paused) : watchingVisible())
+    : all.filter(s => s.list === 'watchlist');
+  let rows = base.map(s => ({ s, st: stats(s) }));
+  rows = rows.filter(r => isTogether(r.s) ? state.ui.showT : state.ui.showM);
+  if (tab === 'watching' && state.ui.filter === 'behind') rows = rows.filter(r => r.st.behind > 0);
+  if (tab === 'watching' && state.ui.filter === 'caught') rows = rows.filter(r => r.st.behind === 0);
+  return rows;
+}
+function render() {
+  const all = Object.values(state.shows);
+  const W = all.filter(s => s.list === 'watching'), L = all.filter(s => s.list === 'watchlist');
+  const WV = watchingVisible();
+  // Tab counts = exactly what that tab would list with the current chips, filters and boxes.
+  $('cW').textContent = W.length ? tabRows('watching').length : ''; $('cL').textContent = L.length ? tabRows('watchlist').length : '';
+  $('occ').checked = !!state.ui.occ; $('btw').checked = !!state.ui.btw; $('pau').checked = !!state.ui.pau;
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === state.ui.tab));
+  const watching = state.ui.tab === 'watching';
+  $('controls').hidden = !watching || !W.length;
+  document.querySelectorAll('#controls .chip').forEach(c => c.classList.toggle('on', c.dataset.filter === state.ui.filter));
+  document.querySelectorAll('#who .chip').forEach(c => c.classList.toggle('on', c.dataset.who === 'together' ? state.ui.showT : state.ui.showM));
+  $('who').hidden = !(watching ? W.length : L.length);
+  // One sort dropdown; each tab remembers its own choice. "Most behind" only makes sense for Watching.
+  const opts = watching ? [['title', 'Title'], ['behind', 'Most behind'], ['next', 'Next airing'], ['recent', 'Most recent']]
+                        : [['title', 'Title'], ['next', 'Next airing'], ['recent', 'Most recent']];
+  const sel = $('sort'), cur = watching ? state.ui.sort : state.ui.lsort;
+  const key = opts.map(o => o[0]).join();
+  if (sel.dataset.opts !== key) { sel.innerHTML = opts.map(o => `<option value="${o[0]}">${o[1]}</option>`).join(''); sel.dataset.opts = key; }
+  sel.value = opts.some(o => o[0] === cur) ? cur : 'title';
+  let rows = tabRows(state.ui.tab);
+  const by = watching ? state.ui.sort : state.ui.lsort;
+  rows.sort((a, b) => {
+    const f = (b.s.fav ? 1 : 0) - (a.s.fav ? 1 : 0);
+    if (f) return f;
+    if (by === 'recent') return (listedKey(b.s) - listedKey(a.s)) || sortKey(a.s.name).localeCompare(sortKey(b.s.name));
+    if (watching && by === 'behind') return b.st.behind - a.st.behind || sortKey(a.s.name).localeCompare(sortKey(b.s.name));
+    if (by === 'next') return (a.st.next?.t ?? 9e15) - (b.st.next?.t ?? 9e15);
+    return sortKey(a.s.name).localeCompare(sortKey(b.s.name));
+  });
+  $('list').innerHTML = rows.length ? rows.map(card).join('') :
+    `<div class="empty">${!all.length ? 'No shows yet.<br>Tap + to add one.'
+      : watching && state.ui.filter === 'paused' ? 'No paused shows.'
+      : watching && W.length && !WV.length ? 'Everything here is hidden (occasional, paused or between seasons).<br>Check the Occasional, Paused or Between boxes to see them.' : 'Nothing here.'}</div>`;
+  const nw = WV.filter(s => !s.paused && s.fresh && s.fresh.length);
+  $('banner').innerHTML = nw.length ? `<div class="banner"><b>New episodes:</b> ` +
+    nw.map(s => `<button data-open="${s.id}">${esc(s.name)} (${s.fresh.length})</button>`).join('') + `</div>` : '';
+}
+
+/* ---------- sheets ---------- */
+let openId = null, openSeasons = new Set();
+function showSheet(html) { $('sheet').innerHTML = html; $('ov').hidden = false; document.body.style.overflow = 'hidden'; }
+function closeSheet() { $('ov').hidden = true; openId = null; document.body.style.overflow = ''; render(); }
+
+function openDetail(id) {
+  const sh = state.shows[id]; if (!sh) return;
+  openId = id; sh.fresh = []; save();
+  const st = stats(sh);
+  openSeasons = new Set(); const t = st.nextUnwatched || sh.eps.filter(e => e.t != null && e.t <= Date.now()).pop();
+  if (t) openSeasons.add(t.s);
+  renderDetail(true);
+}
+function renderDetail(initial) {
+  const sh = state.shows[openId]; if (!sh) return closeSheet();
+  const prev = $('sheet').querySelector('.sbody'); const top = prev ? prev.scrollTop : 0;
+  const now = Date.now(), w = sh.watched || {}, st = stats(sh, now);
+  const seasons = {}; sh.eps.forEach(e => (seasons[e.s] ??= []).push(e));
+  const snums = Object.keys(seasons).map(Number).sort((a, b) => b - a);
+  const si = streamInfo(sh);
+  const streamTxt = si.mode === 'none'
+    ? 'Not on your streaming services' + (si.names.length ? `<div class="small" style="margin-top:2px">Available on: ${esc(si.names.join(', '))}</div>` : ' <span class="small">(no streaming availability found)</span>')
+    : si.names.length ? esc(si.names.join(', ')) : 'Not found';
+  const streamSrc = sh.stream?.src === 'justwatch' ? 'JustWatch via TMDB (US)' + (si.mode === 'mine' ? ' · your services only' : '')
+    : 'network listed on TVmaze; add a TMDB key in settings for streaming services';
+  const body = snums.map(sn => {
+    const eps = seasons[sn], aired = eps.filter(e => e.t != null && e.t <= now);
+    const done = aired.filter(e => w[e.id]).length, all = aired.length && done === aired.length;
+    return `<details data-season="${sn}" ${openSeasons.has(sn) ? 'open' : ''}>
+      <summary>Season ${sn}
+        ${aired.length ? `<button class="btn" data-act="season" data-s="${sn}">${all ? 'Unmark' : 'Mark all'}</button>` : ''}
+        <span class="cnt">${done}/${aired.length} aired${eps.length > aired.length ? ` · ${eps.length} total` : ''}</span></summary>
+      ${eps.slice().reverse().map(e => {
+        const isAired = e.t != null && e.t <= now;
+        return `<button class="ep ${w[e.id] ? 'done' : ''} ${isAired ? '' : 'future'}" data-act="ep" data-e="${e.id}" ${isAired ? '' : 'disabled'}>
+          <span class="box">${w[e.id] ? '&#10003;' : ''}</span><span class="n">${lab(e)}</span>
+          <span class="nm">${esc(e.name)}</span><span class="dt">${e.t != null ? (isAired ? fmtDate(e.t) : 'airs ' + fmtDate(e.t)) : 'TBA'}</span></button>`;
+      }).join('')}</details>`;
+  }).join('');
+  showSheet(`<div class="shead"><h2>${esc(sh.name)}</h2><button class="btn" data-act="close">Done</button></div>
+  <div class="sbody">
+    <div class="small">${esc(statusLabel(sh.status))}${sh.premiered ? ' · ' + sh.premiered.slice(0, 4) : ''}${sh.list === 'watching' && sh.status !== 'Ended' && isBetween(sh, now) ? ' · Returns ' + (st.next ? fmtDate(st.next.t) : 'TBA') : ''}${sh.url ? ` · <a href="${esc(sh.url)}" target="_blank" rel="noopener">TVmaze</a>` : ''}</div>
+    <div style="margin-top:6px"><b>Streaming:</b> ${streamTxt}</div>
+    <div class="small">Source: ${streamSrc}</div>
+    <div class="seg" role="group" aria-label="Who watches">
+      <button class="${isTogether(sh) ? 'on' : ''}" data-act="who" data-v="together">Together</button>
+      <button class="${isTogether(sh) ? '' : 'on'}" data-act="who" data-v="me">Just me</button>
+    </div>
+    <div class="btns">
+      ${sh.list === 'watching'
+        ? `<button class="btn" data-act="mark-all">Mark all aired watched</button><button class="btn" data-act="occ">${sh.occasional ? 'Make regular' : 'Mark occasional'}</button><button class="btn" data-act="pause">${sh.paused ? 'Resume' : 'Pause'}</button><button class="btn" data-act="to-list">Move to To-watch</button>`
+        : `<button class="btn pri" data-act="to-watching">Start watching</button>`}
+      <button class="btn" data-act="fav">${sh.fav ? '&#9733; Unfavorite' : '&#9734; Favorite'}</button>
+      <button class="btn" data-act="restream">Refresh streaming</button>
+      <button class="btn danger" data-act="remove">Remove</button>
+    </div>
+    ${sh.list === 'watching' ? `<div class="small">${st.behind ? st.behind + ' aired episode(s) unwatched' : 'All aired episodes watched'}</div>` : ''}
+    ${body || '<div class="empty">No episodes listed yet.</div>'}
+  </div>`);
+  const nb = $('sheet').querySelector('.sbody'); if (!initial) nb.scrollTop = top;
+}
+
+function openAdd() {
+  openId = null;
+  showSheet(`<div class="shead"><h2>Add a show</h2><button class="btn" data-act="close">Close</button></div>
+  <div class="sbody"><input type="search" id="q" placeholder="Search TVmaze…" autocomplete="off" autocapitalize="off">
+  <div id="res" class="small" style="margin-top:10px">Type a title.</div></div>`);
+  const q = $('q'); let tmr, seq = 0;
+  q.focus();
+  q.addEventListener('input', () => {
+    clearTimeout(tmr);
+    tmr = setTimeout(async () => {
+      const text = q.value.trim(); const my = ++seq;
+      if (text.length < 2) { $('res').textContent = 'Type a title.'; return; }
+      $('res').textContent = 'Searching…';
+      try {
+        const r = await api('https://api.tvmaze.com/search/shows?q=' + encodeURIComponent(text));
+        if (my !== seq) return;
+        $('res').innerHTML = (r || []).slice(0, 10).map(x => resultRow(metaFrom(x.show), x.show.id)).join('') || 'No matches.';
+        window._results = Object.fromEntries((r || []).map(x => [x.show.id, x.show]));
+      } catch (e) { if (my === seq) $('res').textContent = 'Search failed (' + ((e && e.message) || 'unknown error') + '). Check your connection.'; }
+    }, 350);
+  });
+}
+function resultRow(m, id) {
+  const have = state.shows[id];
+  return `<div class="row">
+    ${m.image ? `<img class="poster" style="width:44px;height:62px" src="${esc(m.image)}" alt="">` : `<div class="poster" style="width:44px;height:62px"></div>`}
+    <div style="flex:1;min-width:0"><div style="font-weight:650;color:var(--ink)">${esc(m.name)}</div>
+    <div class="small">${m.premiered ? m.premiered.slice(0, 4) : '—'} · ${esc(statusLabel(m.status))}${m.net ? ' · ' + esc(m.net) : ''}</div></div>
+    ${have ? `<span class="small">Added</span>` : `<div style="display:flex;flex-direction:column;gap:6px">
+      <button class="btn pri" data-act="add" data-id="${id}" data-list="watching">Watching</button>
+      <button class="btn" data-act="add" data-id="${id}" data-list="watching" data-occ="1">Occasional</button>
+      <button class="btn" data-act="add" data-id="${id}" data-list="watchlist">To-watch</button></div>`}
+  </div>`;
+}
+async function addShow(id, list, occ) {
+  const raw = window._results?.[id]; if (!raw || state.shows[id]) return;
+  toast('Adding…');
+  const sh = { id: Number(id), list, occasional: !!occ, together: true, watched: {}, eps: [], added: Date.now(), ...metaFrom(raw) };
+  try { await syncShow(sh); } catch (e) { toast('Added, but could not load episodes yet'); }
+  state.shows[id] = sh; save(); render();
+  if (list === 'watching' && !occ) openDetail(id);
+  else { closeSheet(); toast(occ ? 'Added as Occasional (hidden unless the "Occasional" box is checked)' : 'Added to To-watch'); }
+  if (list === 'watching' && isBetween(sh)) setTimeout(() => toast('Added. It\'s between seasons, so it\'s hidden unless the "Between" box is checked'), occ ? 2800 : 0);
+}
+
+const hasTmdbKey = () => !!(state.settings.tmdbKey || '').trim();
+let providerErr = false, showHiddenSvc = false; // not saved
+async function ensureProviders(force) {
+  providerErr = false;
+  try { await loadProviders(force); } catch (e) { providerErr = true; }
+  renderServices();
+}
+function renderServices() {
+  const box = $('svc'); if (!box) return;
+  if (!hasTmdbKey()) { box.innerHTML = '<div class="small" style="margin:8px 0">Save a TMDB key above to load the list of services.</div>'; return; }
+  const P = state.settings.providers;
+  if (!P) {
+    box.innerHTML = providerErr
+      ? '<div class="small" style="margin:8px 0">Couldn\'t load the list. Check the key and your connection.</div><div class="btns"><button class="btn" data-act="svcload">Try again</button></div>'
+      : '<div class="small" style="margin:8px 0">Loading…</div>';
+    return;
+  }
+  const mine = new Set(state.settings.myServices || []);
+  const q = ($('svcq').value || '').trim().toLowerCase();
+  const match = p => !q || p.name.toLowerCase().includes(q);
+  // Ticked services pinned to the top, then everything else; each group A-Z.
+  const az = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  // Hidden services drop out of the list (unless "Show hidden" is on). Ticked services are never hidden.
+  const hid = new Set(state.settings.hiddenServices || []);
+  const isHid = p => hid.has(p.id) && !mine.has(p.id);
+  const picked = P.list.filter(p => mine.has(p.id) && match(p)).sort(az);
+  const others = P.list.filter(p => !mine.has(p.id) && (showHiddenSvc || !hid.has(p.id)) && match(p)).sort(az);
+  const nHidden = P.list.filter(isHid).length;
+  const row = p => `<div class="svc${isHid(p) ? ' dim' : ''}"><label><input type="checkbox" data-svc="${p.id}" ${mine.has(p.id) ? 'checked' : ''}> ${esc(p.name)}</label>` +
+    (mine.has(p.id) ? '' : `<button class="hidebtn" data-hide="${p.id}">${isHid(p) ? 'Unhide' : 'Hide'}</button>`) + `</div>`;
+  box.innerHTML = ([...picked, ...others].map(row).join('') || '<div class="small" style="margin:8px 0">No matches.</div>') +
+    (nHidden || showHiddenSvc ? `<div class="btns"><button class="btn" data-showhidden="1">${showHiddenSvc ? 'Stop showing hidden' : `Show hidden (${nHidden})`}</button></div>` : '');
+}
+function openSettings() {
+  openId = null;
+  const n = Object.keys(state.shows).length;
+  showSheet(`<div class="shead"><h2>Settings</h2><button class="btn" data-act="close">Done</button></div>
+  <div class="sbody">
+    <p><b>Streaming services (optional)</b><br><span class="small">Without a key, the app shows each show's original network/streamer from TVmaze. For current US streaming services, paste a free TMDB API key or read-access token.</span></p>
+    <input type="password" id="tk" placeholder="TMDB key or token" value="${esc(state.settings.tmdbKey)}" autocomplete="off">
+    <div class="btns"><button class="btn pri" data-act="savekey">Save key &amp; refresh streaming</button></div>
+    <hr style="border:0;border-top:1px solid var(--line)">
+    <p><b>My streaming services</b><br><span class="small">Tick the services you have. Show tiles and pages then list only those, and say "Not on your streaming services" when a show isn't on any of them. With none ticked, everything is listed. Tap <b>Hide</b> on services you'll never use to shorten the list.</span></p>
+    <input type="search" id="svcq" placeholder="Search services…" autocomplete="off">
+    <div id="svc"></div>
+    <hr style="border:0;border-top:1px solid var(--line);margin-top:14px">
+    <p><b>Backup</b><br><span class="small">Your data lives only in this browser (${n} show${n === 1 ? '' : 's'}). Export a copy now and then.</span></p>
+    <div class="btns"><button class="btn" data-act="export">Export</button><button class="btn" data-act="import">Import</button></div>
+    <input type="file" id="file" accept="application/json" hidden>
+    <p class="small">Episode data: <a href="https://www.tvmaze.com" target="_blank" rel="noopener">TVmaze</a> (CC BY-SA). Streaming data: JustWatch via TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+  </div>`);
+  showHiddenSvc = false;
+  $('svcq').addEventListener('input', renderServices);
+  renderServices();
+  if (hasTmdbKey() && !state.settings.providers) ensureProviders();
+  $('file').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const d = JSON.parse(await f.text());
+      if (!d.shows || typeof d.shows !== 'object') throw 0;
+      if (!confirm(`Replace current data with ${Object.keys(d.shows).length} show(s) from this file?`)) return;
+      state = d; state.settings ||= { tmdbKey: '' }; state.ui ||= { tab: 'watching', filter: 'all', sort: 'title' }; normUI();
+      save(); closeSheet(); toast('Imported');
+    } catch (err) { toast('That file is not a valid backup'); }
+  });
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click', async e => {
+  const t = e.target.closest('[data-open],[data-act],[data-tab],[data-filter],[data-who],[data-adismiss],[data-hide],[data-showhidden],#fab,#syncBtn,#setBtn');
+  if (!t) { if (e.target === $('ov')) closeSheet(); return; }
+  if (t.dataset.hide) {
+    const id = Number(t.dataset.hide), set = new Set(state.settings.hiddenServices || []);
+    if (set.has(id)) set.delete(id); else set.add(id);
+    state.settings.hiddenServices = [...set]; save(); return renderServices();
+  }
+  if (t.dataset.showhidden) { showHiddenSvc = !showHiddenSvc; return renderServices(); }
+  if (t.dataset.adismiss) { state.alerts = []; save(); return showAlerts(); }
+  if (t.dataset.open) return openDetail(t.dataset.open);
+  if (t.dataset.tab) { state.ui.tab = t.dataset.tab; save(); return render(); }
+  if (t.dataset.filter) { state.ui.filter = t.dataset.filter; save(); return render(); }
+  if (t.dataset.who) {
+    const k = t.dataset.who === 'together' ? 'showT' : 'showM', other = k === 'showT' ? 'showM' : 'showT';
+    if (state.ui[k] && !state.ui[other]) return toast('Keep at least one on');
+    state.ui[k] = !state.ui[k]; save(); return render();
+  }
+  if (t.id === 'fab') return openAdd();
+  if (t.id === 'syncBtn') return syncAll(true);
+  if (t.id === 'setBtn') return openSettings();
+  const act = t.dataset.act, sh = state.shows[openId];
+  if (act === 'close') return closeSheet();
+  if (act === 'add') return addShow(t.dataset.id, t.dataset.list, !!t.dataset.occ);
+  if (act === 'mark-next') {
+    const m = state.shows[t.dataset.id]; const ep = m && stats(m).nextUnwatched; if (!ep) return;
+    (m.watched ||= {})[ep.id] = 1; save(); render();
+    return toast(`Marked ${lab(ep)} watched`);
+  }
+  if (act === 'svcload') { renderServices(); return ensureProviders(true); }
+  if (act === 'savekey') {
+    state.settings.tmdbKey = $('tk').value.trim(); save(); toast('Refreshing streaming…');
+    state.settings.providers = null; renderServices(); ensureProviders(true);
+    for (const s of Object.values(state.shows)) { try { await refreshStream(s, true); } catch (e) {} await sleep(250); }
+    save(); render(); return toast('Streaming refreshed');
+  }
+  if (act === 'export') {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(state, null, 1)], { type: 'application/json' }));
+    a.download = 'tv-tracker-backup-' + new Date().toISOString().slice(0, 10) + '.json'; a.click(); return;
+  }
+  if (act === 'import') return $('file').click();
+  if (!sh) return;
+  const w = sh.watched ||= {};
+  if (act === 'ep') { if (w[t.dataset.e]) delete w[t.dataset.e]; else w[t.dataset.e] = 1; }
+  else if (act === 'season') {
+    e.preventDefault(); const s = Number(t.dataset.s), now = Date.now();
+    const aired = sh.eps.filter(x => x.s === s && x.t != null && x.t <= now);
+    const all = aired.every(x => w[x.id]);
+    aired.forEach(x => { if (all) delete w[x.id]; else w[x.id] = 1; });
+  }
+  else if (act === 'mark-all') { const now = Date.now(); sh.eps.filter(x => x.t != null && x.t <= now).forEach(x => w[x.id] = 1); }
+  else if (act === 'occ') sh.occasional = !sh.occasional;
+  else if (act === 'pause') sh.paused = !sh.paused;
+  else if (act === 'fav') sh.fav = !sh.fav;
+  else if (act === 'who') sh.together = t.dataset.v === 'together';
+  else if (act === 'to-list') { sh.list = 'watchlist'; sh.occasional = false; sh.paused = false; sh.listedAt = Date.now(); }
+  else if (act === 'to-watching') { sh.list = 'watching'; sh.fresh = []; sh.listedAt = Date.now(); }
+  else if (act === 'restream') {
+    toast('Checking…'); try { await refreshStream(sh, true); } catch (e) {}
+  }
+  else if (act === 'remove') {
+    if (confirm(`Remove ${sh.name}? Your watched history for it will be lost.`)) { delete state.shows[sh.id]; save(); return closeSheet(); }
+    return;
+  }
+  save(); renderDetail(); render();
+});
+$('sheet').addEventListener('toggle', e => {
+  const d = e.target; if (!d.matches || !d.matches('details[data-season]')) return;
+  const s = Number(d.dataset.season); if (d.open) openSeasons.add(s); else openSeasons.delete(s);
+}, true);
+document.addEventListener('change', e => {
+  const c = e.target.closest && e.target.closest('[data-svc]'); if (!c) return;
+  const id = Number(c.dataset.svc), set = new Set(state.settings.myServices || []);
+  if (c.checked) set.add(id); else set.delete(id);
+  if (c.checked) state.settings.hiddenServices = (state.settings.hiddenServices || []).filter(x => x !== id);
+  state.settings.myServices = [...set]; save(); renderServices(); render();
+});
+$('occ').addEventListener('change', e => { state.ui.occ = e.target.checked; save(); render(); });
+$('btw').addEventListener('change', e => { state.ui.btw = e.target.checked; save(); render(); });
+$('pau').addEventListener('change', e => { state.ui.pau = e.target.checked; save(); render(); });
+document.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.card[data-open]')) { e.preventDefault(); e.target.click(); }
+});
+$('sort').addEventListener('change', e => { state.ui[state.ui.tab === 'watching' ? 'sort' : 'lsort'] = e.target.value; save(); render(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkAired(); render(); showAlerts(); syncAll(false); } });
+
+/* ---------- start ---------- */
+checkAired(); render(); showAlerts(); syncAll(false);
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
